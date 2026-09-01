@@ -76,6 +76,8 @@ function buildUserEnv() {
   const env = {
     HINDSIGHT_API_LLM_PROVIDER: process.env.HINDSIGHT_API_LLM_PROVIDER || "deepseek",
     HINDSIGHT_API_LLM_MODEL: process.env.HINDSIGHT_API_LLM_MODEL || "deepseek-v4-flash",
+    // 允许管理页的「测试 LLM 连通」按钮调用(daemon 默认禁用该端点)
+    HINDSIGHT_API_ENABLE_BANK_LLM_HEALTH: process.env.HINDSIGHT_API_ENABLE_BANK_LLM_HEALTH || "true",
     PATH: [
       join(home, ".local", "bin"),
       join(home, ".cargo", "bin"),
