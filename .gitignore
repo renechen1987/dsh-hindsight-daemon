@@ -1,0 +1,4 @@
+# 依赖符号链接(指向 DSH profile 的 hindsight-all),不提交
+node_modules/
+.DS_Store
+*.log
