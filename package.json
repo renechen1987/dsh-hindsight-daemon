@@ -1,6 +1,6 @@
 {
   "name": "dsh-hindsight-daemon",
-  "version": "1.4.1",
+  "version": "1.4.2",
   "description": "DSH Desktop native plugin: auto-start the local Hindsight daemon on app launch, auto-stop on quit.",
   "type": "module",
   "main": "dist/index.js",
@@ -13,7 +13,7 @@
   "license": "MIT",
   "dsh": {
     "bundle": {
-      "kind": "patch"
+      "patch": "./cordis.patch.yml"
     },
     "client": {
       "platform": "web",

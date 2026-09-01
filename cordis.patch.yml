@@ -1,0 +1,4 @@
+# dsh-hindsight-daemon bundle patch — 由 `dsh plugin add` 挂载。
+- insert:
+    - id: dsh-hindsight-daemon
+      name: dsh-hindsight-daemon
