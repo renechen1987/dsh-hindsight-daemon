@@ -13,10 +13,10 @@
  * 缺依赖时插件会记录明确诊断日志(见 /tmp/hindsight-plugin.log),
  * 可运行 scripts/install-prereqs.sh 一键补装。
  */
-import { readFileSync, existsSync, readdirSync, openSync, readSync, closeSync } from "node:fs";
+import { readFileSync, existsSync, readdirSync, openSync, readSync, closeSync, appendFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
-import { execFileSync } from "node:child_process";
+import { execFileSync, spawn } from "node:child_process";
 import { HindsightServer, consoleLogger } from "@vectorize-io/hindsight-all";
 
 const CONFIG_PATH = process.env.HINDSIGHT_CONFIG || join(homedir(), ".hindsight", "coding-agent.json");
@@ -25,8 +25,21 @@ const DAEMON_PORT = 9077;
 const DAEMON_PROFILE = "coding-agent";
 const READY_RETRY_MS = 15_000;
 const READY_RETRY_MAX = 60; // ~15 分钟,覆盖冷启动(下载 embed + 模型 + 编译 litellm)
+const DIAG_FILE = process.env.HINDSIGHT_DIAG_FILE || "/tmp/hindsight-plugin.log";
 
 const name = "dsh-hindsight-daemon";
+
+/** 追加诊断日志到官方 hindsight 相同的 diag 文件,保证在 Electron 里可见。 */
+function diag(event, extra = {}) {
+  try {
+    appendFileSync(
+      DIAG_FILE,
+      JSON.stringify({ ts: new Date().toISOString(), harness: "dsh", plugin: "dsh-hindsight-daemon", event, ...extra }) + "\n",
+    );
+  } catch {
+    // 诊断失败不影响主流程
+  }
+}
 
 function log(msg) {
   consoleLogger.info(`[dsh-hindsight-daemon] ${msg}`);
@@ -167,11 +180,25 @@ function isMachOBinary(p) {
   }
 }
 
+/**
+ * 有界读取:只读文件头部(load commands 区域)检查是否含指定字节串。
+ * 避免把 50-150MB 的二进制整读进内存(Mach-O 的 LC_LOAD_DYLIB 都在头部)。
+ */
+function fileContainsString(file, s, maxBytes = 2 * 1024 * 1024) {
+  const fd = openSync(file, "r");
+  try {
+    const buf = Buffer.alloc(maxBytes);
+    const read = readSync(fd, buf, 0, maxBytes, 0);
+    return buf.subarray(0, read).toString("latin1").includes(s);
+  } finally {
+    closeSync(fd);
+  }
+}
+
 function changeOpenSslPath(file, newLibDir) {
   try {
     const oldDir = "/opt/homebrew/opt/openssl@3/lib";
-    const data = readFileSync(file, "utf8");
-    if (!data.includes(oldDir)) return false;
+    if (!fileContainsString(file, oldDir)) return false;
     for (const lib of ["libssl.3.dylib", "libcrypto.3.dylib"]) {
       try {
         execFileSync("install_name_tool", ["-change", `${oldDir}/${lib}`, `${newLibDir}/${lib}`, file], {
@@ -194,6 +221,26 @@ function changeOpenSslPath(file, newLibDir) {
 }
 
 let server = null;
+let stopped = false; // DSH 退出后不再继续等待/启动
+
+/** 分离式停止:即使 DSH 进程立刻退出,stop 命令也能独立完成。 */
+function stopDaemonDetached(profile, embedVersion) {
+  const home = homedir();
+  const env = {
+    ...process.env,
+    PATH: [join(home, ".local", "bin"), join(home, ".cargo", "bin"), process.env.PATH || ""]
+      .filter(Boolean)
+      .join(":"),
+  };
+  const version = embedVersion && embedVersion.length > 0 ? embedVersion : "latest";
+  const child = spawn("uvx", [`hindsight-embed@${version}`, "daemon", "--profile", profile, "stop"], {
+    detached: true,
+    stdio: "ignore",
+    env,
+  });
+  child.on("error", (err) => logErr(`停止命令失败:${err?.message ?? err}`));
+  child.unref();
+}
 
 /**
  * 把 daemon 所需环境合入当前进程(仅补缺):
@@ -219,14 +266,18 @@ function enrichProcessEnv() {
 
 async function ensureDaemon() {
   const cfg = loadConfig();
-  if (cfg.serverMode && cfg.serverMode !== "daemon") {
-    log(`serverMode=${cfg.serverMode},本地 daemon 由官方 hindsight 插件/云端处理,本插件跳过`);
+  // 与官方插件语义对齐:只有显式 serverMode=daemon 才由本插件接管;
+  // 配置文件缺失/其他模式时让位给官方插件(官方缺省为 cloud)。
+  if (cfg.serverMode !== "daemon") {
+    log(`serverMode=${cfg.serverMode ?? "(未设置)"},本插件仅接管 daemon 模式,跳过`);
     return;
   }
+  if (stopped) return;
   const env = buildUserEnv();
   const missing = preflight(env);
   if (missing) {
     logErr(`环境自检未通过:${missing}`);
+    diag("preflight_failed", { reason: missing });
     return;
   }
   patchPg0OpenSsl(); // 自愈 pg0 PostgreSQL 的 OpenSSL 链接(幂等)
@@ -239,38 +290,57 @@ async function ensureDaemon() {
   });
   if (await server.checkHealth()) {
     log(`daemon 已在 ${server.getBaseUrl()} 运行,直接复用`);
+    diag("adopted", { apiUrl: server.getBaseUrl() });
     return;
   }
   log("启动本地 daemon(冷启动可能需要数分钟:下载 embed + 模型,编译 litellm)…");
+  diag("starting", { apiUrl: server.getBaseUrl() });
   try {
     await server.start();
     log(`daemon 就绪:${server.getBaseUrl()}`);
+    diag("ready", { apiUrl: server.getBaseUrl() });
   } catch (err) {
     // 冷启动超时(默认 30s)不算失败:embed 仍在后台编译,轮询等待就绪
     logErr(`start 返回:${err?.message ?? err};继续在后台等待就绪…`);
     for (let i = 0; i < READY_RETRY_MAX; i++) {
       await new Promise((r) => setTimeout(r, READY_RETRY_MS));
+      if (stopped) return; // DSH 已退出,放弃等待
+      // 首次重试前重新自愈:pg0 可能是启动过程中才下载的(带坏链接)
+      if (i === 0) patchPg0OpenSsl();
       if (await server.checkHealth()) {
         log(`daemon 就绪:${server.getBaseUrl()}(后台完成)`);
+        diag("ready", { apiUrl: server.getBaseUrl(), via: "retry" });
         return;
       }
     }
     logErr("等待超时:daemon 未就绪,请查看 /tmp/hindsight-plugin.log");
+    diag("start_timeout", { apiUrl: server.getBaseUrl() });
   }
 }
 
 function apply() {
   enrichProcessEnv();
+  diag("loaded");
   // host 就绪后 1s 开始后台拉起(不阻塞 DSH 启动)
   const timer = setTimeout(() => {
-    ensureDaemon().catch((err) => logErr(`启动失败:${err?.message ?? err}`));
+    ensureDaemon().catch((err) => {
+      logErr(`启动失败:${err?.message ?? err}`);
+      diag("start_failed", { error: String(err?.message ?? err) });
+    });
   }, 1000);
-  // DSH Desktop 退出 → 自动优雅停止 daemon
+  // DSH Desktop 退出 → 自动停止 daemon(分离进程,保证 stop 执行完)
   return () => {
     clearTimeout(timer);
+    if (stopped) return;
+    stopped = true;
     log("DSH 退出,停止本地 daemon…");
+    diag("stopping");
     if (server) {
-      server.stop().catch(() => {});
+      try {
+        stopDaemonDetached(server.profile, server.embedVersion);
+      } catch (err) {
+        logErr(`停止失败:${err?.message ?? err}`);
+      }
     }
   };
 }
