@@ -1,16 +1,27 @@
 {
   "name": "dsh-hindsight-daemon",
-  "version": "1.3.1",
+  "version": "1.4.0",
   "description": "DSH Desktop native plugin: auto-start the local Hindsight daemon on app launch, auto-stop on quit.",
   "type": "module",
   "main": "dist/index.js",
   "exports": {
-    ".": "./dist/index.js"
+    ".": "./dist/index.js",
+    "./client": {
+      "default": "./dist/client.js"
+    }
   },
   "license": "MIT",
   "dsh": {
     "bundle": {
       "kind": "patch"
+    },
+    "client": {
+      "platform": "web",
+      "inject": [
+        "@deepseek-ai/dsh-client-locale",
+        "@deepseek-ai/dsh-client-ui-settings",
+        "@deepseek-ai/dsh-client-ui-settings-plugins"
+      ]
     }
   }
 }
