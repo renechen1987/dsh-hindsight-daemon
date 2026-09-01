@@ -20,6 +20,8 @@ import { execFileSync, spawn } from "node:child_process";
 import { createServer } from "node:http";
 import { fileURLToPath } from "node:url";
 import { HindsightServer, consoleLogger } from "@vectorize-io/hindsight-all";
+import z from "@deepseek-ai/schemastery";
+import { settingsNamespace } from "@deepseek-ai/dsh-settings";
 
 const CONFIG_PATH = process.env.HINDSIGHT_CONFIG || join(homedir(), ".hindsight", "coding-agent.json");
 const CREDENTIALS_PATH = join(homedir(), ".dsh", ".credentials.yaml");
@@ -28,6 +30,7 @@ const DAEMON_PROFILE = "coding-agent";
 const READY_RETRY_MS = 15_000;
 const READY_RETRY_MAX = 60; // ~15 分钟,覆盖冷启动(下载 embed + 模型 + 编译 litellm)
 const DIAG_FILE = process.env.HINDSIGHT_DIAG_FILE || "/tmp/hindsight-plugin.log";
+const HINDSIGHT_SETTINGS_NAMESPACE = "dsh-hindsight-daemon"; // 与 client 卡片 key 一致
 
 const name = "dsh-hindsight-daemon";
 
@@ -484,8 +487,30 @@ async function ensureDaemon() {
   }
 }
 
+/**
+ * 注册 host 侧 settings schema(对齐 dsh-univer-office 的做法)。
+ * 「插件配置」页的"可配置"标签只显示 served 集合里的 namespace ——
+ * served 来自 settings.describe,即必须有 host 侧 schema 注册,client 卡片才会出现。
+ */
+function setupHostSettings(ctx) {
+  try {
+    ctx.inject(["settings"], (settingsCtx) => {
+      settingsCtx.settings.register(
+        settingsNamespace(HINDSIGHT_SETTINGS_NAMESPACE),
+        z.object({}),
+        { base: {}, applies: "live" }
+      );
+      log(`设置 schema 已注册:${HINDSIGHT_SETTINGS_NAMESPACE}(插件配置页卡片将显示)`);
+      diag("settings_registered", { namespace: HINDSIGHT_SETTINGS_NAMESPACE });
+    });
+  } catch (err) {
+    logErr(`设置 schema 注册失败:${err?.message ?? err}`);
+  }
+}
+
 function apply(ctx) {
   enrichProcessEnv();
+  setupHostSettings(ctx);
   diag("loaded");
   const disposeManager = setupManager(ctx);
   // host 就绪后 1s 开始后台拉起(不阻塞 DSH 启动)
