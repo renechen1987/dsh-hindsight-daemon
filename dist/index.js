@@ -311,7 +311,9 @@ async function managerHandler(req, res) {
 function setupManager(ctx) {
   const disposers = [];
   const offInject = ctx.on("webserver/index-inject", (table) => {
-    table.push({ type: "script-src", src: `${MANAGER_PREFIX}/entry.js`, placement: "body" });
+    // 关键:行字段是 kind(实测自 app.asar 运行版源码),不是 type ——
+    // 字段名错误会让 renderRow 走 assertNever 抛异常 → 渲染器启动失败 → 30s 超时回滚。
+    table.push({ kind: "script-src", src: `${MANAGER_PREFIX}/entry.js`, placement: "body" });
   });
   disposers.push(offInject);
   ctx.inject(["webServer"], (ws) => {

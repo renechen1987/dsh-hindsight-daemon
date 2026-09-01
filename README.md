@@ -79,6 +79,16 @@ curl http://127.0.0.1:9077/health
 
 DSH 会话内可用 `hindsight_diagnose` / `hindsight_sync_status` 查看记忆状态。
 
+## 🗑 卸载
+
+```bash
+zsh ~/.dsh/plugins/dsh-hindsight-daemon/scripts/uninstall.sh
+```
+
+脚本会:① 把 `cordis.patch.yml` 恢复为默认空列表(移除挂载)② 停止本地 daemon。重启 DSH 后插件即不再加载。
+
+> 若 DSH 启动失败(如渲染器 30s 超时),DSH 自带恢复机制:启动界面会提示回滚,回滚即还原 profile 与 patch,等效卸载。
+
 ## 🧠 记忆管理页
 
 插件会在 DSH 的 web 服务器上挂一个**本地记忆管理页**(v1.2.0+):
