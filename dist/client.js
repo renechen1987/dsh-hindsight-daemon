@@ -87,7 +87,7 @@ window.__ModuleLoader__.load({
       });
     }
     exports.apply = apply;
-    exports.inject = ["slots", "locale", "settingsScope"];
+    exports.inject = ["slots", "locale"];
     return module.exports;
   },
 });
