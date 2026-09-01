@@ -14,27 +14,37 @@
 - **自动复用**:daemon 已在运行时直接复用,不重复启动
 - **智能跳过**:`~/.hindsight/coding-agent.json` 中 `serverMode` 非 `daemon` 时自动让位给官方插件/云端模式
 
-## 📦 安装
+## 📦 安装(任意机器,官方插件流程)
 
 ```bash
-# 1. 补装前置依赖(uv + Rust,已装过会自动跳过)
+# 1. 克隆插件仓库
+git clone https://github.com/renechen1987/dsh-hindsight-daemon.git ~/.dsh/plugins/dsh-hindsight-daemon
+
+# 2. 补装前置依赖(uv;macOS 还需要 Rust,已装过会自动跳过)
 zsh ~/.dsh/plugins/dsh-hindsight-daemon/scripts/install-prereqs.sh
 
-# 2. 复制插件到 DSH 插件目录
-mkdir -p ~/.dsh/plugins
-cp -R dsh-hindsight-daemon ~/.dsh/plugins/
+# 3. 用 DSH 官方插件命令安装(会正确写入 package.json、lockfile 并挂载 bundle)
+dsh plugin --profile desktop add link:~/.dsh/plugins/dsh-hindsight-daemon
 
-# 3. 创建依赖链接(指向 DSH 已装的 hindsight-all)
-mkdir -p ~/.dsh/plugins/dsh-hindsight-daemon/node_modules/@vectorize-io
-ln -sfn ~/.dsh/profiles/desktop/node_modules/@vectorize-io/hindsight-all \
-  ~/.dsh/plugins/dsh-hindsight-daemon/node_modules/@vectorize-io/hindsight-all
+# 4. 写配置(daemon 模式)
+echo '{"serverMode":"daemon"}' > ~/.hindsight/coding-agent.json
 
-# 4. 挂载到 desktop profile 的补丁层
-#    在 ~/.dsh/profiles/desktop/cordis.patch.yml 追加:
-#    - insert:
-#        - id: dsh-hindsight-daemon
-#          name: /Users/<你>/.dsh/plugins/dsh-hindsight-daemon/dist/index.js
+# 5. 重启 DSH Desktop
 ```
+
+**LLM key(二选一,不需要手动输入)**:
+- 插件自动读取 `~/.dsh/.credentials.yaml` 中的 `DEEPSEEK_API_KEY`(DSH 凭据文件,与 DSH 主模型同源)
+- 或设置环境变量 `HINDSIGHT_API_LLM_API_KEY` / `DEEPSEEK_API_KEY`(默认 provider=deepseek, model=deepseek-v4-flash)
+
+**平台差异**:
+- **macOS**:需要 Rust 工具链(litellm 无 macOS 预编译包);若本机没有标准 brew(`/opt/homebrew`),插件会自动修复 pg0 内嵌 PostgreSQL 的 OpenSSL 链接
+- **Linux / Windows**:无需 Rust(pip 轮子直装),`scripts/install-prereqs.sh` 只装 uv
+
+**验证**:重启后访问 `http://127.0.0.1:43121`(管理页)或 `curl http://127.0.0.1:9077/health`
+
+**卸载**:`zsh ~/.dsh/plugins/dsh-hindsight-daemon/scripts/uninstall.sh`(或 `dsh plugin --profile desktop remove dsh-hindsight-daemon`)
+
+> 📌 **注意**:本地 daemon 模式记忆存储在**本机**(每台机器独立 bank),不会跨机器同步。如需多机共享记忆,把 `serverMode` 改为 `cloud` 并配置 token。
 
 ## ⚙️ 配置
 
