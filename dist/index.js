@@ -17,6 +17,7 @@ import { readFileSync, existsSync, readdirSync, openSync, readSync, closeSync, a
 import { homedir } from "node:os";
 import { join, dirname as pathDirname } from "node:path";
 import { execFileSync, spawn } from "node:child_process";
+import { createServer } from "node:http";
 import { fileURLToPath } from "node:url";
 import { HindsightServer, consoleLogger } from "@vectorize-io/hindsight-all";
 
@@ -27,7 +28,6 @@ const DAEMON_PROFILE = "coding-agent";
 const READY_RETRY_MS = 15_000;
 const READY_RETRY_MAX = 60; // ~15 分钟,覆盖冷启动(下载 embed + 模型 + 编译 litellm)
 const DIAG_FILE = process.env.HINDSIGHT_DIAG_FILE || "/tmp/hindsight-plugin.log";
-const MANAGER_PREFIX = "/hindsight-manager";
 
 const name = "dsh-hindsight-daemon";
 
@@ -293,37 +293,85 @@ async function proxyToDaemon(req, res, pathname) {
 async function managerHandler(req, res) {
   loadStatic();
   const pathname = new URL(req.url ?? "/", "http://x").pathname;
-  if (pathname === MANAGER_PREFIX || pathname === `${MANAGER_PREFIX}/`) {
+  if (pathname === "/" || pathname === "/index.html") {
     res.writeHead(200, { "content-type": "text/html; charset=utf-8", "cache-control": "no-store" });
     res.end(managerHtml);
-  } else if (pathname === `${MANAGER_PREFIX}/entry.js`) {
+  } else if (pathname === "/entry.js") {
     res.writeHead(200, { "content-type": "text/javascript; charset=utf-8", "cache-control": "no-store" });
     res.end(entryJs);
-  } else if (pathname.startsWith(`${MANAGER_PREFIX}/api`)) {
-    await proxyToDaemon(req, res, pathname.slice(MANAGER_PREFIX.length));
+  } else if (pathname.startsWith("/api")) {
+    await proxyToDaemon(req, res, pathname);
   } else {
     res.writeHead(404, { "content-type": "text/plain; charset=utf-8" });
     res.end("not found");
   }
 }
 
-/** 注册管理页路由 + GUI 入口注入;返回清理函数。 */
+const MANAGER_PRIMARY_PORT = 43121; // 独立管理服务端口(DSH webServer 的 43120 之后)
+
+/**
+ * 启动独立管理服务(仅绑定 127.0.0.1):
+ *  - 不依赖 DSH webServer/访问控制,Safari 等外部浏览器可直接打开
+ *  - 端口被占用时顺延尝试 43122/43123/43124
+ * 返回 http server 或 null。
+ */
+function startManagerServer() {
+  loadStatic();
+  const server = createServer((req, res) => {
+    managerHandler(req, res).catch(() => {
+      try {
+        res.writeHead(500);
+        res.end("internal error");
+      } catch {
+        // 响应已发送则忽略
+      }
+    });
+  });
+  const ports = [MANAGER_PRIMARY_PORT, 43122, 43123, 43124];
+  return new Promise((resolve) => {
+    let idx = 0;
+    const attempt = () => {
+      if (idx >= ports.length) {
+        logErr("管理服务端口均被占用");
+        resolve(null);
+        return;
+      }
+      const port = ports[idx++];
+      const onErr = (err) => {
+        server.removeListener("error", onErr);
+        if (err?.code === "EADDRINUSE") attempt();
+        else {
+          logErr(`管理服务启动失败:${err?.message ?? err}`);
+          resolve(null);
+        }
+      };
+      server.once("error", onErr);
+      server.listen(port, "127.0.0.1", () => {
+        server.removeListener("error", onErr);
+        log(`记忆管理页已启动:http://127.0.0.1:${port}(Safari 可直接打开)`);
+        diag("manager_started", { url: `http://127.0.0.1:${port}` });
+        resolve(server);
+      });
+    };
+    attempt();
+  });
+}
+
+/** 启动独立管理服务 + GUI 悬浮入口注入;返回清理函数。 */
 function setupManager(ctx) {
   const disposers = [];
   const offInject = ctx.on("webserver/index-inject", (table) => {
     // 关键:行字段是 kind(实测自 app.asar 运行版源码),不是 type ——
     // 字段名错误会让 renderRow 走 assertNever 抛异常 → 渲染器启动失败 → 30s 超时回滚。
-    table.push({ kind: "script-src", src: `${MANAGER_PREFIX}/entry.js`, placement: "body" });
+    table.push({
+      kind: "script-src",
+      src: `http://127.0.0.1:${MANAGER_PRIMARY_PORT}/entry.js`,
+      placement: "body",
+    });
   });
   disposers.push(offInject);
-  ctx.inject(["webServer"], (ws) => {
-    try {
-      disposers.push(ws.register({ kind: "prefix", path: MANAGER_PREFIX, handler: managerHandler }));
-      log(`记忆管理页已挂载:${MANAGER_PREFIX}(DSH 界面右下角悬浮按钮「🧠 记忆」)`);
-      diag("manager_mounted", { path: MANAGER_PREFIX });
-    } catch (err) {
-      logErr(`webServer 路由注册失败:${err?.message ?? err}`);
-    }
+  startManagerServer().then((srv) => {
+    if (srv) disposers.push(() => srv.close());
   });
   return () => {
     for (const d of disposers) {
@@ -463,6 +511,6 @@ function apply(ctx) {
   };
 }
 
-const plugin = { name, inject: ["webServer"], apply };
+const plugin = { name, apply };
 export default plugin;
-export { name, apply, ensureDaemon, buildUserEnv, preflight, patchPg0OpenSsl, setupManager, managerHandler };
+export { name, apply, ensureDaemon, buildUserEnv, preflight, patchPg0OpenSsl, setupManager, managerHandler, startManagerServer };
