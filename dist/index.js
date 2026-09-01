@@ -15,8 +15,9 @@
  */
 import { readFileSync, existsSync, readdirSync, openSync, readSync, closeSync, appendFileSync } from "node:fs";
 import { homedir } from "node:os";
-import { join } from "node:path";
+import { join, dirname as pathDirname } from "node:path";
 import { execFileSync, spawn } from "node:child_process";
+import { fileURLToPath } from "node:url";
 import { HindsightServer, consoleLogger } from "@vectorize-io/hindsight-all";
 
 const CONFIG_PATH = process.env.HINDSIGHT_CONFIG || join(homedir(), ".hindsight", "coding-agent.json");
@@ -26,6 +27,7 @@ const DAEMON_PROFILE = "coding-agent";
 const READY_RETRY_MS = 15_000;
 const READY_RETRY_MAX = 60; // ~15 分钟,覆盖冷启动(下载 embed + 模型 + 编译 litellm)
 const DIAG_FILE = process.env.HINDSIGHT_DIAG_FILE || "/tmp/hindsight-plugin.log";
+const MANAGER_PREFIX = "/hindsight-manager";
 
 const name = "dsh-hindsight-daemon";
 
@@ -220,6 +222,118 @@ function changeOpenSslPath(file, newLibDir) {
   }
 }
 
+// ---------------------------------------------------------------------------
+// 记忆管理页:挂在 DSH 的 webServer 上(同源,无 CORS 问题),
+// 并在 GUI 的 index.html 注入悬浮入口按钮(webserver/index-inject)。
+// ---------------------------------------------------------------------------
+
+let managerHtml = null;
+let entryJs = null;
+
+function loadStatic() {
+  if (managerHtml === null) {
+    const dir = pathDirname(fileURLToPath(import.meta.url));
+    try {
+      managerHtml = readFileSync(join(dir, "manager.html"), "utf8");
+    } catch {
+      managerHtml = "";
+    }
+    try {
+      entryJs = readFileSync(join(dir, "entry.js"), "utf8");
+    } catch {
+      entryJs = "";
+    }
+  }
+}
+
+function daemonBase() {
+  const cfg = loadConfig();
+  if (cfg.apiUrl) return cfg.apiUrl.replace(/\/$/, "");
+  return `http://127.0.0.1:${cfg.apiPort ?? DAEMON_PORT}`;
+}
+
+function readBody(req) {
+  return new Promise((resolve, reject) => {
+    const chunks = [];
+    req.on("data", (c) => chunks.push(c));
+    req.on("end", () => resolve(Buffer.concat(chunks)));
+    req.on("error", reject);
+  });
+}
+
+/** 把 /hindsight-manager/api/* 代理到 daemon(同源,浏览器无需 CORS)。 */
+async function proxyToDaemon(req, res, pathname) {
+  try {
+    // pathname 形如 /api/health 或 /api/v1/...;剥掉 /api 前缀后转发给 daemon
+    const rest = pathname.startsWith("/api") ? pathname.slice(4) : pathname;
+    const qIndex = req.url.indexOf("?");
+    const target = daemonBase() + rest + (qIndex >= 0 ? req.url.slice(qIndex) : "");
+    const headers = { ...req.headers };
+    delete headers.host;
+    delete headers["content-length"];
+    const body = ["POST", "PUT", "PATCH"].includes(req.method) ? await readBody(req) : undefined;
+    const resp = await fetch(target, {
+      method: req.method,
+      headers,
+      body,
+      signal: AbortSignal.timeout(120000),
+    });
+    const buf = Buffer.from(await resp.arrayBuffer());
+    res.writeHead(resp.status, {
+      "content-type": resp.headers.get("content-type") || "application/json; charset=utf-8",
+      "cache-control": "no-store",
+    });
+    res.end(buf);
+  } catch (err) {
+    res.writeHead(502, { "content-type": "application/json; charset=utf-8" });
+    res.end(JSON.stringify({ error: String(err?.message ?? err) }));
+  }
+}
+
+async function managerHandler(req, res) {
+  loadStatic();
+  const pathname = new URL(req.url ?? "/", "http://x").pathname;
+  if (pathname === MANAGER_PREFIX || pathname === `${MANAGER_PREFIX}/`) {
+    res.writeHead(200, { "content-type": "text/html; charset=utf-8", "cache-control": "no-store" });
+    res.end(managerHtml);
+  } else if (pathname === `${MANAGER_PREFIX}/entry.js`) {
+    res.writeHead(200, { "content-type": "text/javascript; charset=utf-8", "cache-control": "no-store" });
+    res.end(entryJs);
+  } else if (pathname.startsWith(`${MANAGER_PREFIX}/api`)) {
+    await proxyToDaemon(req, res, pathname.slice(MANAGER_PREFIX.length));
+  } else {
+    res.writeHead(404, { "content-type": "text/plain; charset=utf-8" });
+    res.end("not found");
+  }
+}
+
+/** 注册管理页路由 + GUI 入口注入;返回清理函数。 */
+function setupManager(ctx) {
+  const disposers = [];
+  const offInject = ctx.on("webserver/index-inject", (table) => {
+    table.push({ type: "script-src", src: `${MANAGER_PREFIX}/entry.js`, placement: "body" });
+  });
+  disposers.push(offInject);
+  ctx.inject(["webServer"], (ws) => {
+    try {
+      disposers.push(ws.register({ kind: "prefix", path: MANAGER_PREFIX, handler: managerHandler }));
+      log(`记忆管理页已挂载:${MANAGER_PREFIX}(DSH 界面右下角悬浮按钮「🧠 记忆」)`);
+      diag("manager_mounted", { path: MANAGER_PREFIX });
+    } catch (err) {
+      logErr(`webServer 路由注册失败:${err?.message ?? err}`);
+    }
+  });
+  return () => {
+    for (const d of disposers) {
+      try {
+        d();
+      } catch {
+        // 忽略清理失败
+      }
+    }
+  };
+}
+
 let server = null;
 let stopped = false; // DSH 退出后不再继续等待/启动
 
@@ -318,9 +432,10 @@ async function ensureDaemon() {
   }
 }
 
-function apply() {
+function apply(ctx) {
   enrichProcessEnv();
   diag("loaded");
+  const disposeManager = setupManager(ctx);
   // host 就绪后 1s 开始后台拉起(不阻塞 DSH 启动)
   const timer = setTimeout(() => {
     ensureDaemon().catch((err) => {
@@ -331,6 +446,7 @@ function apply() {
   // DSH Desktop 退出 → 自动停止 daemon(分离进程,保证 stop 执行完)
   return () => {
     clearTimeout(timer);
+    disposeManager();
     if (stopped) return;
     stopped = true;
     log("DSH 退出,停止本地 daemon…");
@@ -345,6 +461,6 @@ function apply() {
   };
 }
 
-const plugin = { name, apply };
+const plugin = { name, inject: ["webServer"], apply };
 export default plugin;
-export { name, apply, ensureDaemon, buildUserEnv, preflight, patchPg0OpenSsl };
+export { name, apply, ensureDaemon, buildUserEnv, preflight, patchPg0OpenSsl, setupManager, managerHandler };

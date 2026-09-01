@@ -1,0 +1,291 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>🧠 Hindsight 记忆管理</title>
+<style>
+  :root { --bg:#0f1420; --panel:#171e2e; --panel2:#1d2638; --border:#2a3650; --text:#dbe4f5; --dim:#8b98b5; --accent:#4f8cff; --ok:#34c77b; --bad:#ff6b6b; --warn:#ffb454; }
+  * { box-sizing:border-box; margin:0; padding:0; }
+  body { background:var(--bg); color:var(--text); font:14px/1.6 -apple-system,"PingFang SC","Microsoft YaHei",sans-serif; padding:24px; max-width:1100px; margin:0 auto; }
+  h1 { font-size:20px; display:flex; align-items:center; gap:10px; }
+  h2 { font-size:15px; margin-bottom:12px; }
+  .bar { display:flex; align-items:center; gap:12px; flex-wrap:wrap; margin-bottom:16px; }
+  .badge { padding:3px 10px; border-radius:99px; font-size:12px; border:1px solid var(--border); color:var(--dim); }
+  .badge.ok { color:var(--ok); border-color:var(--ok); }
+  .badge.bad { color:var(--bad); border-color:var(--bad); }
+  .tabs { display:flex; gap:6px; margin-bottom:16px; flex-wrap:wrap; }
+  .tab { padding:7px 16px; border-radius:8px; border:1px solid var(--border); background:var(--panel); color:var(--dim); cursor:pointer; }
+  .tab.on { background:var(--accent); color:#fff; border-color:var(--accent); }
+  .panel { display:none; }
+  .panel.on { display:block; }
+  .cards { display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:12px; margin-bottom:16px; }
+  .card { background:var(--panel); border:1px solid var(--border); border-radius:10px; padding:14px; }
+  .card .num { font-size:26px; font-weight:700; color:var(--accent); }
+  .card .lbl { color:var(--dim); font-size:12px; }
+  .card .sub { color:var(--dim); font-size:12px; margin-top:4px; }
+  button { background:var(--panel2); color:var(--text); border:1px solid var(--border); border-radius:8px; padding:7px 14px; cursor:pointer; font-size:13px; }
+  button:hover { border-color:var(--accent); }
+  button.danger { color:var(--bad); border-color:var(--bad); }
+  button:disabled { opacity:.5; cursor:not-allowed; }
+  .row { display:flex; gap:10px; margin-bottom:12px; align-items:center; flex-wrap:wrap; }
+  input, textarea, select { background:var(--panel2); color:var(--text); border:1px solid var(--border); border-radius:8px; padding:7px 10px; font-size:13px; }
+  input { flex:1; min-width:180px; }
+  textarea { width:100%; min-height:70px; margin-bottom:8px; font-family:ui-monospace,Menlo,monospace; }
+  table { width:100%; border-collapse:collapse; background:var(--panel); border:1px solid var(--border); border-radius:10px; overflow:hidden; }
+  th, td { padding:8px 10px; text-align:left; border-bottom:1px solid var(--border); font-size:13px; vertical-align:top; }
+  th { background:var(--panel2); color:var(--dim); font-weight:600; white-space:nowrap; }
+  tr:hover td { background:rgba(79,140,255,.05); }
+  .mono { font-family:ui-monospace,Menlo,monospace; font-size:12px; }
+  .dim { color:var(--dim); font-size:12px; }
+  .tag { display:inline-block; background:var(--panel2); border:1px solid var(--border); border-radius:5px; padding:1px 7px; font-size:11px; margin:1px; color:var(--dim); }
+  .detail { display:none; background:var(--panel2); border:1px solid var(--border); border-radius:8px; padding:10px; margin:6px 0; font-size:12px; }
+  .detail.open { display:block; }
+  .empty { color:var(--dim); text-align:center; padding:30px 0; }
+  .toast { position:fixed; bottom:20px; left:50%; transform:translateX(-50%); background:var(--panel2); border:1px solid var(--accent); padding:8px 18px; border-radius:8px; font-size:13px; display:none; z-index:99; }
+  pre { white-space:pre-wrap; word-break:break-all; }
+  .spin { display:inline-block; animation:rot 1s linear infinite; }
+  @keyframes rot { to { transform:rotate(360deg); } }
+</style>
+</head>
+<body>
+<div class="bar">
+  <h1>🧠 Hindsight 记忆管理</h1>
+  <span id="health" class="badge">检测中…</span>
+  <span id="bank" class="badge mono"></span>
+  <span style="flex:1"></span>
+  <a href="/" style="color:var(--dim);font-size:13px;">← 返回 DSH</a>
+</div>
+<div class="tabs">
+  <div class="tab on" data-t="overview">概览</div>
+  <div class="tab" data-t="memories">记忆</div>
+  <div class="tab" data-t="docs">文档</div>
+  <div class="tab" data-t="pages">知识页</div>
+  <div class="tab" data-t="audit">审计</div>
+</div>
+
+<div class="panel on" id="p-overview">
+  <div class="cards" id="cards"></div>
+  <h2>操作</h2>
+  <div class="row">
+    <button id="btn-consolidate">🔄 立即整合记忆</button>
+    <button id="btn-llm">⚡ 测试 LLM 连通</button>
+    <button id="btn-refresh">🔃 刷新</button>
+  </div>
+  <h2 style="margin-top:16px">深度记忆查询 (reflect)</h2>
+  <textarea id="reflect-q" placeholder="例如:这个项目之前遇到过什么坑?决策依据是什么?"></textarea>
+  <div class="row">
+    <button id="btn-reflect">🧠 查询记忆</button>
+  </div>
+  <pre id="reflect-out" class="dim" style="margin-top:8px"></pre>
+</div>
+
+<div class="panel" id="p-memories">
+  <div class="row">
+    <input id="mem-filter" placeholder="搜索记忆(关键词)…">
+    <button id="btn-mem-del-all" class="danger">🗑 清空全部记忆(危险)</button>
+  </div>
+  <table id="mem-table">
+    <thead><tr><th style="width:40%">内容</th><th>类型</th><th>实体</th><th>日期</th><th style="width:70px">操作</th></tr></thead>
+    <tbody></tbody>
+  </table>
+  <div id="mem-empty" class="empty">暂无记忆 — 会话结束后会自动沉淀</div>
+</div>
+
+<div class="panel" id="p-docs">
+  <div class="row"><button id="btn-docs-refresh">🔃 刷新文档</button></div>
+  <table id="doc-table">
+    <thead><tr><th>文档 ID</th><th>文本量</th><th>记忆单元</th><th>更新时间</th><th style="width:130px">操作</th></tr></thead>
+    <tbody></tbody>
+  </table>
+  <div id="doc-empty" class="empty">暂无文档</div>
+</div>
+
+<div class="panel" id="p-pages">
+  <div class="row">
+    <input id="page-q" placeholder="搜索知识页…">
+    <button id="btn-page-search">🔍 搜索</button>
+    <button id="btn-page-tree">🌲 显示树</button>
+  </div>
+  <pre id="page-out" class="dim"></pre>
+</div>
+
+<div class="panel" id="p-audit">
+  <div class="row"><button id="btn-audit-refresh">🔃 刷新审计</button></div>
+  <table id="audit-table">
+    <thead><tr><th>时间</th><th>动作</th><th>详情</th></tr></thead>
+    <tbody></tbody>
+  </table>
+  <div id="audit-empty" class="empty">暂无审计记录</div>
+</div>
+
+<div id="toast" class="toast"></div>
+
+<script>
+const API = "/hindsight-manager/api";
+const BANK = encodeURIComponent("coding-agent::rene");
+const $ = (s) => document.querySelector(s);
+const toast = (msg) => { const t = $("#toast"); t.textContent = msg; t.style.display = "block"; setTimeout(() => t.style.display = "none", 2600); };
+const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#39;" }[c]));
+const fmt = (iso) => iso ? new Date(iso).toLocaleString("zh-CN", { hour12:false }) : "-";
+
+async function api(path, opts = {}) {
+  const r = await fetch(`${API}${path}`, { headers: { "content-type": "application/json" }, ...opts });
+  if (!r.ok) throw new Error(`${r.status} ${(await r.text()).slice(0,200)}`);
+  return r.json();
+}
+
+// ---- tabs ----
+document.querySelectorAll(".tab").forEach((el) => el.onclick = () => {
+  document.querySelectorAll(".tab").forEach((t) => t.classList.toggle("on", t === el));
+  document.querySelectorAll(".panel").forEach((p) => p.classList.toggle("on", p.id === `p-${el.dataset.t}`));
+});
+
+// ---- overview ----
+async function loadOverview() {
+  try {
+    const h = await fetch(`${API}/health`).then((r) => r.json());
+    $("#health").textContent = h.status === "healthy" ? "● daemon 正常" : "● daemon 异常";
+    $("#health").className = "badge " + (h.status === "healthy" ? "ok" : "bad");
+  } catch { $("#health").textContent = "● daemon 未连接"; $("#health").className = "badge bad"; }
+  $("#bank").textContent = decodeURIComponent(BANK);
+  try {
+    const [m, d] = await Promise.all([api(`/v1/default/banks/${BANK}/memories/list`), api(`/v1/default/banks/${BANK}/documents`)]);
+    const memCount = m.items?.length ?? 0;
+    const docCount = d.items?.length ?? 0;
+    const textLen = (d.items ?? []).reduce((s, x) => s + (x.text_length ?? 0), 0);
+    $("#cards").innerHTML = `
+      <div class="card"><div class="num">${memCount}</div><div class="lbl">记忆单元</div></div>
+      <div class="card"><div class="num">${docCount}</div><div class="lbl">文档(含会话)</div></div>
+      <div class="card"><div class="num">${(textLen/1000).toFixed(1)}k</div><div class="lbl">文本量</div></div>
+      <div class="card"><div class="num">${(d.items ?? []).reduce((s,x)=>s+(x.memory_unit_count??0),0)}</div><div class="lbl">会话产出单元</div></div>`;
+  } catch (e) { $("#cards").innerHTML = `<div class="empty">加载失败:${esc(e.message)}</div>`; }
+}
+$("#btn-consolidate").onclick = async (e) => {
+  e.target.disabled = true; e.target.textContent = "整合中…";
+  try { const r = await api(`/v1/default/banks/${BANK}/consolidate`, { method: "POST" }); toast("✅ 整合已触发: " + JSON.stringify(r).slice(0,120)); }
+  catch (err) { toast("❌ " + err.message); }
+  e.target.disabled = false; e.target.textContent = "🔄 立即整合记忆";
+};
+$("#btn-llm").onclick = async (e) => {
+  e.target.disabled = true;
+  try { const r = await api(`/v1/default/banks/${BANK}/health/llm`, { method: "POST" }); toast("✅ LLM 连通: " + JSON.stringify(r).slice(0,150)); }
+  catch (err) { toast("❌ " + err.message); }
+  e.target.disabled = false;
+};
+$("#btn-reflect").onclick = async () => {
+  const q = $("#reflect-q").value.trim();
+  if (!q) return toast("请输入查询内容");
+  $("#reflect-out").textContent = "思考中…";
+  try {
+    const r = await api(`/v1/default/banks/${BANK}/reflect`, { method: "POST", body: JSON.stringify({ query: q }) });
+    $("#reflect-out").textContent = r.answer ?? JSON.stringify(r, null, 2);
+  } catch (err) { $("#reflect-out").textContent = "❌ " + err.message; }
+};
+$("#btn-refresh").onclick = loadOverview;
+
+// ---- memories ----
+async function loadMemories(filter = "") {
+  let items = [];
+  try { items = (await api(`/v1/default/banks/${BANK}/memories/list`)).items ?? []; }
+  catch (e) { toast("❌ " + e.message); return; }
+  const f = filter.toLowerCase();
+  const rows = items.filter((m) => !f || (m.text ?? "").toLowerCase().includes(f) || (m.entities ?? "").toLowerCase().includes(f) || (m.tags ?? []).join().toLowerCase().includes(f));
+  const tbody = document.querySelector("#mem-table tbody");
+  tbody.innerHTML = rows.map((m) => `
+    <tr>
+      <td><div>${esc((m.text ?? "").slice(0, 200))}</div><div class="dim">${esc((m.tags ?? []).join(" "))}</div></td>
+      <td>${esc(m.fact_type ?? "-")}</td>
+      <td>${esc(m.entities ?? "-")}</td>
+      <td class="dim" style="white-space:nowrap">${fmt(m.date ?? m.mentioned_at)}</td>
+      <td>
+        <button onclick="toggleDetail('${m.id}')">详情</button>
+        <button class="danger" onclick="delMemory('${m.id}')">删</button>
+        <div class="detail" id="d-${m.id}"><div class="dim">加载中…</div></div>
+      </td>
+    </tr>`).join("");
+  $("#mem-empty").style.display = rows.length ? "none" : "block";
+}
+window.toggleDetail = async (id) => {
+  const el = document.getElementById(`d-${id}`);
+  el.classList.toggle("open");
+  if (el.classList.contains("open") && el.textContent.trim() === "加载中…") {
+    try {
+      const m = await api(`/v1/default/banks/${BANK}/memories/${encodeURIComponent(id)}`);
+      el.innerHTML = `<pre>${esc(JSON.stringify(m, null, 2))}</pre>`;
+    } catch (e) { el.textContent = "❌ " + e.message; }
+  }
+};
+window.delMemory = async (id) => {
+  if (!confirm("删除这条记忆?")) return;
+  try { await api(`/v1/default/banks/${BANK}/memories/${encodeURIComponent(id)}/observations`, { method: "DELETE" }); toast("✅ 已删除"); loadMemories($("#mem-filter").value); }
+  catch (e) { toast("❌ " + e.message); }
+};
+$("#mem-filter").oninput = (e) => loadMemories(e.target.value);
+$("#btn-mem-del-all").onclick = async () => {
+  if (!confirm("⚠️ 确定清空该记忆库的全部记忆?此操作不可恢复!")) return;
+  try { await api(`/v1/default/banks/${BANK}/memories`, { method: "DELETE" }); toast("✅ 已清空"); loadMemories(); }
+  catch (e) { toast("❌ " + e.message); }
+};
+
+// ---- docs ----
+async function loadDocs() {
+  let items = [];
+  try { items = (await api(`/v1/default/banks/${BANK}/documents`)).items ?? []; }
+  catch (e) { toast("❌ " + e.message); return; }
+  document.querySelector("#doc-table tbody").innerHTML = items.map((d) => `
+    <tr>
+      <td class="mono">${esc(d.id)}</td>
+      <td>${(d.text_length ?? 0).toLocaleString()}</td>
+      <td>${d.memory_unit_count ?? 0}</td>
+      <td class="dim">${fmt(d.updated_at ?? d.created_at)}</td>
+      <td>
+        <button onclick="reprocessDoc('${esc(d.id)}')">重处理</button>
+        <button class="danger" onclick="delDoc('${esc(d.id)}')">删</button>
+      </td>
+    </tr>`).join("");
+  $("#doc-empty").style.display = items.length ? "none" : "block";
+}
+window.reprocessDoc = async (id) => {
+  try { await api(`/v1/default/banks/${BANK}/documents/${encodeURIComponent(id)}/reprocess`, { method: "POST" }); toast("✅ 已重新处理"); }
+  catch (e) { toast("❌ " + e.message); }
+};
+window.delDoc = async (id) => {
+  if (!confirm("删除该文档?其记忆单元会一并清理。")) return;
+  try { await api(`/v1/default/banks/${BANK}/documents/${encodeURIComponent(id)}`, { method: "DELETE" }); toast("✅ 已删除"); loadDocs(); }
+  catch (e) { toast("❌ " + e.message); }
+};
+$("#btn-docs-refresh").onclick = loadDocs;
+
+// ---- pages ----
+$("#btn-page-search").onclick = async () => {
+  const q = $("#page-q").value.trim();
+  if (!q) return;
+  try {
+    const r = await api(`/v1/default/banks/${BANK}/knowledge-base/search?q=${encodeURIComponent(q)}`);
+    $("#page-out").textContent = JSON.stringify(r, null, 2);
+  } catch (e) { $("#page-out").textContent = "❌ " + e.message; }
+};
+$("#btn-page-tree").onclick = async () => {
+  try { $("#page-out").textContent = JSON.stringify(await api(`/v1/default/banks/${BANK}/knowledge-base/tree`), null, 2); }
+  catch (e) { $("#page-out").textContent = "❌ " + e.message; }
+};
+
+// ---- audit ----
+async function loadAudit() {
+  try {
+    const r = await api(`/v1/default/banks/${BANK}/audit-logs`);
+    const items = r.items ?? [];
+    document.querySelector("#audit-table tbody").innerHTML = items.map((a) => `
+      <tr><td class="dim" style="white-space:nowrap">${fmt(a.timestamp ?? a.created_at)}</td><td>${esc(a.action ?? a.type ?? "-")}</td><td class="mono">${esc(JSON.stringify(a.detail ?? a.metadata ?? "").slice(0,150))}</td></tr>`).join("");
+    $("#audit-empty").style.display = items.length ? "none" : "block";
+  } catch (e) { toast("❌ " + e.message); }
+}
+$("#btn-audit-refresh").onclick = loadAudit;
+
+// ---- init ----
+loadOverview(); loadMemories(); loadDocs(); loadAudit();
+setInterval(loadOverview, 60000);
+</script>
+</body>
+</html>
