@@ -107,6 +107,7 @@
   <div class="tab" data-t="docs">Documents</div>
   <div class="tab" data-t="pages">Knowledge Pages</div>
   <div class="tab" data-t="audit">Audit</div>
+  <div class="tab" data-t="routing">Banks &amp; Routing</div>
 </div>
 
 <div class="panel on" id="p-overview">
@@ -164,6 +165,24 @@
   <div id="audit-empty" class="empty">No audit records</div>
 </div>
 
+<div class="panel" id="p-routing">
+  <h2>Fixed bank (all conversations)</h2>
+  <div class="row">
+    <select id="cfg-bank-fixed" style="max-width:340px;">
+      <option value="">(auto — per project folder)</option>
+    </select>
+    <span class="dim">Leave empty for automatic per-folder banks.</span>
+  </div>
+  <h2 style="margin-top:18px">Folder → Bank mappings (shared memory)</h2>
+  <div class="dim" style="margin-bottom:10px">Conversations started under a mapped folder share that bank's long-term memory.</div>
+  <div id="cfg-mappings"></div>
+  <div class="row" style="margin-top:10px">
+    <button id="cfg-add-map">＋ Add mapping</button>
+    <button id="cfg-save" style="border-color:var(--dsw-accent);">💾 Save routing</button>
+  </div>
+  <div class="dim" style="margin-top:8px">Saved to ~/.hindsight/coding-agent.json — applies to <b>new sessions</b>.</div>
+</div>
+
 <div id="toast" class="toast"></div>
 
 <script>
@@ -198,6 +217,7 @@ $("#theme-toggle").onclick = () => {
 document.querySelectorAll(".tab").forEach((el) => el.onclick = () => {
   document.querySelectorAll(".tab").forEach((t) => t.classList.toggle("on", t === el));
   document.querySelectorAll(".panel").forEach((p) => p.classList.toggle("on", p.id === `p-${el.dataset.t}`));
+  if (el.dataset.t === "routing") loadRouting();
 });
 
 // ---- overview ----
@@ -370,6 +390,79 @@ $("#bank-select").onchange = (e) => {
   try { localStorage.setItem("dhh-bank", e.target.value); } catch {}
   reloadAll();
   toast("✅ Switched to bank: " + e.target.value);
+};
+
+// ---- Banks & Routing 配置页 ----
+let __BANKS = [];
+async function ensureBanks() {
+  if (__BANKS.length === 0) {
+    try { __BANKS = ((await api("/v1/default/banks")).banks ?? []).map((b) => b.bank_id); } catch {}
+  }
+  if (__BANKS.length === 0) __BANKS = ["coding-agent::rene"];
+  return __BANKS;
+}
+function bankOptions(selected) {
+  return __BANKS.map((b) => `<option value="${esc(b)}"${b === selected ? " selected" : ""}>${esc(b)}</option>`).join("");
+}
+function addMappingRow(path = "", bank = "") {
+  const box = $("#cfg-mappings");
+  const row = document.createElement("div");
+  row.className = "row";
+  row.style.cssText = "align-items:center;";
+  row.innerHTML = `
+    <input class="cfg-path" placeholder="/Users/you/path/to/folder" value="${esc(path)}" style="flex:1;min-width:220px;">
+    <select class="cfg-bank" style="max-width:260px;">${bankOptions(bank)}</select>
+    <button class="cfg-remove danger" title="Remove mapping">✕</button>`;
+  row.querySelector(".cfg-remove").onclick = () => row.remove();
+  box.appendChild(row);
+}
+async function loadRouting() {
+  await ensureBanks();
+  // 固定库下拉
+  const fixedSel = $("#cfg-bank-fixed");
+  const currentFixed = (() => { try { return (JSON.parse(localStorage.getItem("dhh-cfg")) || {}).bankId || ""; } catch { return ""; } })();
+  fixedSel.innerHTML = `<option value="">(auto — per project folder)</option>` + bankOptions(currentFixed);
+  try {
+    const r = await api("/api/plugin/config", { method: "GET" });
+    const cfg = r.config || {};
+    let saved = {}; try { saved = JSON.parse(localStorage.getItem("dhh-cfg")) || {}; } catch {}
+    saved = { ...cfg, ...saved };
+    const fixed = (typeof cfg.bankId === "string" ? cfg.bankId : "") || "";
+    fixedSel.value = fixed;
+    fixedSel.innerHTML = `<option value="">(auto — per project folder)</option>` + bankOptions(fixed);
+    const mappings = cfg.mapPathToBank && typeof cfg.mapPathToBank === "object" ? cfg.mapPathToBank : {};
+    const entries = Object.entries(mappings);
+    $("#cfg-mappings").innerHTML = "";
+    if (entries.length === 0) addMappingRow();
+    for (const [p, b] of entries) addMappingRow(p, b);
+    try { localStorage.setItem("dhh-cfg", JSON.stringify(cfg)); } catch {}
+  } catch (e) {
+    $("#cfg-mappings").innerHTML = "";
+    addMappingRow();
+    toast("❌ " + e.message);
+  }
+}
+$("#cfg-add-map").onclick = () => addMappingRow();
+$("#cfg-save").onclick = async () => {
+  const mapPathToBank = {};
+  document.querySelectorAll("#cfg-mappings .row").forEach((row) => {
+    const p = row.querySelector(".cfg-path").value.trim();
+    const b = row.querySelector(".cfg-bank").value;
+    if (p && b) mapPathToBank[p] = b;
+  });
+  const bankId = $("#cfg-bank-fixed").value;
+  const btn = $("#cfg-save");
+  btn.disabled = true;
+  try {
+    const r = await api("/api/plugin/config", {
+      method: "PUT",
+      body: JSON.stringify({ bankId: bankId || "", mapPathToBank }),
+    });
+    if (!r.ok) throw new Error(r.error || "save failed");
+    try { localStorage.setItem("dhh-cfg", JSON.stringify(r.config)); } catch {}
+    toast("✅ Saved. Applies to new sessions.");
+  } catch (err) { toast("❌ " + err.message); }
+  btn.disabled = false;
 };
 
 // ---- init ----

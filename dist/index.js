@@ -13,7 +13,18 @@
  * 缺依赖时插件会记录明确诊断日志(见 /tmp/hindsight-plugin.log),
  * 可运行 scripts/install-prereqs.sh 一键补装。
  */
-import { readFileSync, existsSync, readdirSync, openSync, readSync, closeSync, appendFileSync } from "node:fs";
+import {
+  readFileSync,
+  existsSync,
+  readdirSync,
+  openSync,
+  readSync,
+  closeSync,
+  appendFileSync,
+  writeFileSync,
+  mkdirSync,
+  renameSync,
+} from "node:fs";
 import { homedir } from "node:os";
 import { join, dirname as pathDirname } from "node:path";
 import { execFileSync, spawn } from "node:child_process";
@@ -295,6 +306,86 @@ async function proxyToDaemon(req, res, pathname) {
   }
 }
 
+const JSON_HEADERS = { "content-type": "application/json; charset=utf-8", "cache-control": "no-store" };
+
+/** 读取插件配置文件(~/.hindsight/coding-agent.json)。 */
+function readPluginConfigRaw() {
+  try {
+    return JSON.parse(readFileSync(CONFIG_PATH, "utf8"));
+  } catch {
+    return {};
+  }
+}
+
+/** 原子写入插件配置文件。 */
+function writePluginConfigRaw(next) {
+  try {
+    mkdirSync(pathDirname(CONFIG_PATH), { recursive: true });
+  } catch {
+    // 目录已存在则忽略
+  }
+  const tmp = `${CONFIG_PATH}.tmp`;
+  writeFileSync(tmp, JSON.stringify(next, null, 2), "utf8");
+  renameSync(tmp, CONFIG_PATH);
+}
+
+/** 处理 /api/plugin/config:读取/更新 bank 路由等插件配置(UI「Banks & Routing」页使用)。 */
+async function handlePluginConfig(req, res, pathname) {
+  if (pathname !== "/api/plugin/config") return false;
+  if (req.method === "GET") {
+    res.writeHead(200, JSON_HEADERS);
+    res.end(JSON.stringify({ ok: true, config: readPluginConfigRaw() }));
+    return true;
+  }
+  if (req.method === "PUT" || req.method === "POST") {
+    try {
+      const body = JSON.parse((await readBody(req)).toString("utf8") || "{}");
+      const cur = readPluginConfigRaw();
+      const next = { ...cur };
+      // serverMode 保持现状(默认 daemon),仅显式传入才允许修改
+      if (typeof body.serverMode === "string") next.serverMode = body.serverMode;
+      else if (!next.serverMode) next.serverMode = "daemon";
+      // bankId:空字符串/null = 删除(恢复自动按项目)
+      if ("bankId" in body) {
+        if (typeof body.bankId === "string" && body.bankId.trim() !== "") next.bankId = body.bankId.trim();
+        else delete next.bankId;
+      }
+      // mapPathToBank:对象,空值自动清理
+      if ("mapPathToBank" in body) {
+        const m = body.mapPathToBank;
+        if (m && typeof m === "object") {
+          const clean = {};
+          for (const [k, v] of Object.entries(m)) {
+            if (typeof k === "string" && k.trim() !== "" && typeof v === "string" && v.trim() !== "") {
+              clean[k.trim()] = v.trim();
+            }
+          }
+          if (Object.keys(clean).length > 0) next.mapPathToBank = clean;
+          else delete next.mapPathToBank;
+        } else {
+          delete next.mapPathToBank;
+        }
+      }
+      writePluginConfigRaw(next);
+      log(`配置已更新:bankId=${next.bankId ?? "(auto)"}, 映射 ${Object.keys(next.mapPathToBank ?? {}).length} 条`);
+      diag("config_updated", {
+        bankId: next.bankId ?? null,
+        mappings: Object.entries(next.mapPathToBank ?? {}).map(([p, b]) => `${p}→${b}`),
+      });
+      res.writeHead(200, JSON_HEADERS);
+      res.end(JSON.stringify({ ok: true, config: next }));
+      return true;
+    } catch (err) {
+      res.writeHead(400, JSON_HEADERS);
+      res.end(JSON.stringify({ ok: false, error: String(err?.message ?? err) }));
+      return true;
+    }
+  }
+  res.writeHead(405, JSON_HEADERS);
+  res.end(JSON.stringify({ ok: false, error: "method not allowed" }));
+  return true;
+}
+
 async function managerHandler(req, res) {
   loadStatic();
   const pathname = new URL(req.url ?? "/", "http://x").pathname;
@@ -304,6 +395,8 @@ async function managerHandler(req, res) {
   } else if (pathname === "/entry.js") {
     res.writeHead(200, { "content-type": "text/javascript; charset=utf-8", "cache-control": "no-store" });
     res.end(entryJs);
+  } else if (pathname.startsWith("/api/plugin")) {
+    await handlePluginConfig(req, res, pathname);
   } else if (pathname.startsWith("/api")) {
     await proxyToDaemon(req, res, pathname);
   } else {
