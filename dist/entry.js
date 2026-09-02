@@ -9,13 +9,13 @@
     if (document.currentScript && document.currentScript.src) {
       base = new URL(document.currentScript.src).origin;
     }
-  } catch (e) { /* 保持默认 */ }
+  } catch (e) { /* keep default */ }
   var btn = document.createElement("a");
   btn.href = base + "/";
   btn.target = "_blank";
   btn.rel = "noopener";
-  btn.textContent = "🧠 记忆";
-  btn.title = "打开 Hindsight 本地记忆管理页";
+  btn.textContent = "🧠 Memory";
+  btn.title = "Open Hindsight memory manager";
   btn.style.cssText =
     "position:fixed;right:18px;bottom:18px;z-index:2147483000;" +
     "background:#1d2638;color:#dbe4f5;border:1px solid #4f8cff;border-radius:99px;" +

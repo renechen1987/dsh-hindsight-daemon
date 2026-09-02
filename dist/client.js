@@ -11,11 +11,11 @@ window.__ModuleLoader__.load({
     var react = require("react");
     var NS = "dsh-hindsight-daemon";
     var DICT = {
-      "settings.title": "🧠 Hindsight 记忆管理",
-      "settings.description": "本地记忆库:浏览 / 搜索 / 删除记忆、文档、知识页、审计日志、深度查询。",
-      "settings.open": "打开管理页 ↗",
-      "settings.collapse": "收起",
-      "settings.expand": "展开",
+      "settings.title": "🧠 Hindsight Memory",
+      "settings.description": "Local memory: browse / search / delete memories, documents, knowledge pages, audit logs, deep queries.",
+      "settings.open": "Open Manager ↗",
+      "settings.collapse": "Collapse",
+      "settings.expand": "Expand",
     };
     /** 注入插件样式(同 univer 的 injectStyles 做法)。 */
     function injectStyles(id, css) {
