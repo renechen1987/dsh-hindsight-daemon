@@ -93,7 +93,10 @@
 <div class="bar">
   <h1>🧠 Hindsight Memory Manager</h1>
   <span id="health" class="badge">Checking…</span>
-  <span id="bank" class="badge mono"></span>
+  <label style="display:inline-flex;align-items:center;gap:6px;font-size:13px;color:var(--dsw-label-secondary);">
+    Bank
+    <select id="bank-select" title="Switch memory bank" style="max-width:260px;"></select>
+  </label>
   <span style="flex:1"></span>
   <button id="theme-toggle" class="icon-btn" title="Toggle theme">🌓</button>
   <a href="http://127.0.0.1:43120" style="color:var(--dsw-label-tertiary);font-size:13px;text-decoration:none;">← Back to DSH</a>
@@ -165,7 +168,7 @@
 
 <script>
 const API = "/api";
-const BANK = encodeURIComponent("coding-agent::rene");
+let BANK = encodeURIComponent("coding-agent::rene");
 const $ = (s) => document.querySelector(s);
 const toast = (msg) => { const t = $("#toast"); t.textContent = msg; t.style.display = "block"; setTimeout(() => t.style.display = "none", 2600); };
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#39;" }[c]));
@@ -204,7 +207,6 @@ async function loadOverview() {
     $("#health").textContent = h.status === "healthy" ? "● daemon OK" : "● daemon error";
     $("#health").className = "badge " + (h.status === "healthy" ? "ok" : "bad");
   } catch { $("#health").textContent = "● daemon not connected"; $("#health").className = "badge bad"; }
-  $("#bank").textContent = decodeURIComponent(BANK);
   try {
     const [m, d] = await Promise.all([api(`/v1/default/banks/${BANK}/memories/list`), api(`/v1/default/banks/${BANK}/documents`)]);
     const memCount = m.items?.length ?? 0;
@@ -339,8 +341,39 @@ async function loadAudit() {
 }
 $("#btn-audit-refresh").onclick = loadAudit;
 
+// ---- memory bank switcher ----
+function reloadAll() {
+  loadOverview(); loadMemories($("#mem-filter").value); loadDocs(); loadAudit();
+  // 页签切回概览,避免残留旧 bank 的表格上下文
+  document.querySelectorAll(".tab").forEach((t) => t.classList.toggle("on", t.dataset.t === "overview"));
+  document.querySelectorAll(".panel").forEach((p) => p.classList.toggle("on", p.id === "p-overview"));
+}
+async function loadBanks() {
+  const sel = $("#bank-select");
+  try {
+    const r = await api("/v1/default/banks");
+    const banks = (r.banks ?? []).map((b) => b.bank_id);
+    if (banks.length === 0) banks.push("coding-agent::rene");
+    const saved = (() => { try { return localStorage.getItem("dhh-bank"); } catch { return null; } })();
+    let current = saved && banks.includes(saved) ? saved : decodeURIComponent(BANK);
+    if (!banks.includes(current)) current = banks[0];
+    sel.innerHTML = banks.map((b) => `<option value="${esc(b)}"${b === current ? " selected" : ""}>${esc(b)}</option>`).join("");
+    BANK = encodeURIComponent(current);
+    try { localStorage.setItem("dhh-bank", current); } catch {}
+  } catch (e) {
+    sel.innerHTML = `<option value="${decodeURIComponent(BANK)}">${decodeURIComponent(BANK)}</option>`;
+  }
+  reloadAll();
+}
+$("#bank-select").onchange = (e) => {
+  BANK = encodeURIComponent(e.target.value);
+  try { localStorage.setItem("dhh-bank", e.target.value); } catch {}
+  reloadAll();
+  toast("✅ Switched to bank: " + e.target.value);
+};
+
 // ---- init ----
-loadOverview(); loadMemories(); loadDocs(); loadAudit();
+loadBanks();
 setInterval(loadOverview, 60000);
 </script>
 </body>
