@@ -108,6 +108,7 @@
   <div class="tab" data-t="pages">Knowledge Pages</div>
   <div class="tab" data-t="audit">Audit</div>
   <div class="tab" data-t="routing">Banks &amp; Routing</div>
+  <div class="tab" data-t="settings">Settings</div>
 </div>
 
 <div class="panel on" id="p-overview">
@@ -183,6 +184,26 @@
   <div class="dim" style="margin-top:8px">Saved to ~/.hindsight/coding-agent.json — applies to <b>new sessions</b>.</div>
 </div>
 
+<div class="panel" id="p-settings">
+  <h2>Provider &amp; API key</h2>
+  <div class="dim" style="margin-bottom:10px">
+    The plugin auto-detects a DeepSeek key from (in order) environment variables (<span class="mono">HINDSIGHT_API_LLM_API_KEY</span> /
+    <span class="mono">DEEPSEEK_API_KEY</span>), the local DSH credentials file
+    (<span class="mono">~/.dsh/.credentials.yaml</span>), or the key saved below.
+  </div>
+  <div id="key-status" class="dim" style="margin-bottom:8px">Loading…</div>
+  <div class="row">
+    <input id="key-input" type="password" placeholder="sk-… (leave empty to clear)" style="max-width:480px;" autocomplete="off">
+    <label style="display:inline-flex;align-items:center;gap:4px;font-size:12px;color:var(--dsw-label-secondary);">
+      <input type="checkbox" id="key-show"> show
+    </label>
+  </div>
+  <div class="row">
+    <button id="btn-key-save" style="border-color:var(--dsw-accent);">💾 Save key</button>
+  </div>
+  <div class="dim" style="margin-top:8px">Saved to the plugin config — takes effect on the <b>next DSH restart</b>.</div>
+</div>
+
 <div id="toast" class="toast"></div>
 
 <script>
@@ -218,6 +239,7 @@ document.querySelectorAll(".tab").forEach((el) => el.onclick = () => {
   document.querySelectorAll(".tab").forEach((t) => t.classList.toggle("on", t === el));
   document.querySelectorAll(".panel").forEach((p) => p.classList.toggle("on", p.id === `p-${el.dataset.t}`));
   if (el.dataset.t === "routing") loadRouting();
+  if (el.dataset.t === "settings") loadKeyStatus();
 });
 
 // ---- overview ----
@@ -465,8 +487,41 @@ $("#cfg-save").onclick = async () => {
   btn.disabled = false;
 };
 
+// ---- Settings: API key ----
+async function loadKeyStatus() {
+  const s = $("#key-status");
+  s.textContent = "Loading…";
+  try {
+    const r = await api("/api/plugin/key");
+    if (r.configured) {
+      s.textContent = `● Configured via ${r.source} (${r.prefix}…)`;
+      s.style.color = "var(--dsw-label-primary)";
+    } else {
+      s.textContent = "○ Not configured — the plugin will auto-detect a local DeepSeek key (env / DSH credentials).";
+      s.style.color = "var(--dsw-label-tertiary)";
+    }
+  } catch (e) {
+    s.textContent = "❌ " + e.message;
+  }
+}
+$("#btn-key-save").onclick = async () => {
+  const v = $("#key-input").value.trim();
+  const btn = $("#btn-key-save");
+  btn.disabled = true;
+  try {
+    const r = await api("/api/plugin/key", { method: "PUT", body: JSON.stringify({ apiKey: v }) });
+    if (!r.ok) throw new Error(r.error || "save failed");
+    $("#key-input").value = "";
+    toast(v ? "✅ Key saved. Takes effect on next DSH restart." : "✅ Key cleared.");
+    loadKeyStatus();
+  } catch (err) { toast("❌ " + err.message); }
+  btn.disabled = false;
+};
+$("#key-show").onchange = (e) => { $("#key-input").type = e.target.checked ? "text" : "password"; };
+
 // ---- init ----
 loadBanks();
+loadKeyStatus();
 setInterval(loadOverview, 60000);
 </script>
 </body>

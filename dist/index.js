@@ -73,15 +73,37 @@ function loadConfig() {
 }
 
 /** 优先环境变量,其次 DSH 凭据文件(与用户授权一致,仅本机使用)。 */
-function readDeepSeekKey() {
-  if (process.env.HINDSIGHT_API_LLM_API_KEY) return process.env.HINDSIGHT_API_LLM_API_KEY;
-  if (process.env.DEEPSEEK_API_KEY) return process.env.DEEPSEEK_API_KEY;
-  try {
-    const m = readFileSync(CREDENTIALS_PATH, "utf8").match(/^ {2}DEEPSEEK_API_KEY:\s*(\S+)/m);
-    return m ? m[1] : undefined;
-  } catch {
-    return undefined;
+/** 按优先级查找 DeepSeek key,返回 { key, source }:
+ *  1) 环境变量(HINDSIGHT_API_LLM_API_KEY / DEEPSEEK_API_KEY / DEEPSEEK_KEY)
+ *  2) 本机 DSH 凭据文件 ~/.dsh/.credentials.yaml(任意缩进,兼容 JSON/YAML 与多个字段名)
+ *  3) 插件配置 ~/.hindsight/coding-agent.json 的 deepseekApiKey(UI「Settings」页保存)
+ */
+function readDeepSeekKeySource() {
+  for (const k of ["HINDSIGHT_API_LLM_API_KEY", "DEEPSEEK_API_KEY", "DEEPSEEK_KEY"]) {
+    const v = process.env[k];
+    if (typeof v === "string" && v.trim() !== "") return { key: v.trim(), source: `env:${k}` };
   }
+  try {
+    const text = readFileSync(CREDENTIALS_PATH, "utf8");
+    for (const name of ["DEEPSEEK_API_KEY", "DEEPSEEK_KEY", "deepseek_api_key", "deepseekApiKey"]) {
+      const m = text.match(new RegExp(`^\\s*${name}\\s*:\\s*["']?([^"'\\s]+)["']?`, "m"));
+      if (m && m[1]) return { key: m[1], source: `credentials-file:${name}` };
+    }
+  } catch {
+    // 文件不可读则跳过
+  }
+  try {
+    const cfg = JSON.parse(readFileSync(CONFIG_PATH, "utf8"));
+    const v = cfg && typeof cfg.deepseekApiKey === "string" && cfg.deepseekApiKey.trim() !== "" ? cfg.deepseekApiKey.trim() : undefined;
+    if (v) return { key: v, source: "plugin-config" };
+  } catch {
+    // 无配置则跳过
+  }
+  return { key: undefined, source: undefined };
+}
+
+function readDeepSeekKey() {
+  return readDeepSeekKeySource().key;
 }
 
 /** daemon 进程需要的完整环境:LLM 配置 + uv/cargo 的 PATH。 */
@@ -386,6 +408,39 @@ async function handlePluginConfig(req, res, pathname) {
   return true;
 }
 
+/** 处理 /api/plugin/key:读取/保存 DeepSeek key(UI「Settings」页使用)。 */
+async function handlePluginKey(req, res, pathname) {
+  if (pathname !== "/api/plugin/key") return false;
+  if (req.method === "GET") {
+    const { key, source } = readDeepSeekKeySource();
+    res.writeHead(200, JSON_HEADERS);
+    res.end(JSON.stringify({ ok: true, configured: !!key, source: source ?? null, prefix: key ? key.slice(0, 7) : null }));
+    return true;
+  }
+  if (req.method === "PUT" || req.method === "POST") {
+    try {
+      const body = JSON.parse((await readBody(req)).toString("utf8") || "{}");
+      const raw = typeof body.apiKey === "string" ? body.apiKey.trim() : "";
+      const cur = readPluginConfigRaw();
+      const next = { ...cur };
+      if (raw) next.deepseekApiKey = raw;
+      else delete next.deepseekApiKey;
+      writePluginConfigRaw(next);
+      diag("key_updated", { configured: !!raw });
+      res.writeHead(200, JSON_HEADERS);
+      res.end(JSON.stringify({ ok: true, configured: !!raw, config: next }));
+      return true;
+    } catch (err) {
+      res.writeHead(400, JSON_HEADERS);
+      res.end(JSON.stringify({ ok: false, error: String(err?.message ?? err) }));
+      return true;
+    }
+  }
+  res.writeHead(405, JSON_HEADERS);
+  res.end(JSON.stringify({ ok: false, error: "method not allowed" }));
+  return true;
+}
+
 async function managerHandler(req, res) {
   loadStatic();
   const pathname = new URL(req.url ?? "/", "http://x").pathname;
@@ -395,6 +450,8 @@ async function managerHandler(req, res) {
   } else if (pathname === "/entry.js") {
     res.writeHead(200, { "content-type": "text/javascript; charset=utf-8", "cache-control": "no-store" });
     res.end(entryJs);
+  } else if (pathname === "/api/plugin/key") {
+    await handlePluginKey(req, res, pathname);
   } else if (pathname.startsWith("/api/plugin")) {
     await handlePluginConfig(req, res, pathname);
   } else if (pathname.startsWith("/api")) {
@@ -633,4 +690,4 @@ function apply(ctx) {
 
 const plugin = { name, apply };
 export default plugin;
-export { name, apply, ensureDaemon, buildUserEnv, preflight, patchPg0OpenSsl, setupManager, managerHandler, startManagerServer };
+export { name, apply, ensureDaemon, buildUserEnv, preflight, patchPg0OpenSsl, setupManager, managerHandler, startManagerServer, readDeepSeekKeySource };
