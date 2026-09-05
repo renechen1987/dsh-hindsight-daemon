@@ -106,6 +106,23 @@ function readDeepSeekKey() {
   return readDeepSeekKeySource().key;
 }
 
+/** 读取 daemon profile 环境文件里实际用的 HINDSIGHT_API_LLM_API_KEY。 */
+function readDaemonProfileKey(profile) {
+  try {
+    const text = readFileSync(join(homedir(), ".hindsight", "profiles", `${profile}.env`), "utf8");
+    const m = text.match(/^HINDSIGHT_API_LLM_API_KEY\s*=\s*["']?([^"'\r\n]+)["']?/m);
+    return m ? m[1].trim() : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+/** 掩码显示 key,避免明文进日志。 */
+function maskKey(k) {
+  if (!k) return "";
+  return k.length > 8 ? `${k.slice(0, 4)}…${k.slice(-4)}` : "…";
+}
+
 /** daemon 进程需要的完整环境:LLM 配置 + uv/cargo 的 PATH。 */
 function buildUserEnv() {
   const home = homedir();
@@ -608,6 +625,29 @@ async function ensureDaemon() {
     logger: consoleLogger,
   });
   if (await server.checkHealth()) {
+    // daemon 在跑,但校验它用的 key 是否与当前有效 key 一致:
+    // 若不一致(用户改了 key、或旧 daemon 烙着失效 key),必须重启以应用新 key,
+    // 否则会一直沿用旧 key → 记忆抽取 401。
+    const expectKey = env.HINDSIGHT_API_LLM_API_KEY;
+    const daemonKey = readDaemonProfileKey(cfg.daemonProfile ?? DAEMON_PROFILE);
+    if (expectKey && daemonKey && expectKey !== daemonKey) {
+      log(`daemon 正在用旧 key(${maskKey(daemonKey)}),与当前(${maskKey(expectKey)})不一致,重启 daemon 以应用新 key…`);
+      diag("key_mismatch_restart", { daemon: maskKey(daemonKey), expected: maskKey(expectKey) });
+      try {
+        await server.stop();
+      } catch {
+        // 停止失败也继续尝试启动
+      }
+      await new Promise((r) => setTimeout(r, 3000)); // 等端口释放
+      try {
+        await server.start();
+        log(`daemon 已用新 key 重启:${server.getBaseUrl()}`);
+        diag("ready", { apiUrl: server.getBaseUrl(), via: "key-mismatch-restart" });
+        return;
+      } catch (err) {
+        logErr(`重启 daemon 失败:${err?.message ?? err}`);
+      }
+    }
     log(`daemon 已在 ${server.getBaseUrl()} 运行,直接复用`);
     diag("adopted", { apiUrl: server.getBaseUrl() });
     return;
@@ -690,4 +730,4 @@ function apply(ctx) {
 
 const plugin = { name, apply };
 export default plugin;
-export { name, apply, ensureDaemon, buildUserEnv, preflight, patchPg0OpenSsl, setupManager, managerHandler, startManagerServer, readDeepSeekKeySource };
+export { name, apply, ensureDaemon, buildUserEnv, preflight, patchPg0OpenSsl, setupManager, managerHandler, startManagerServer, readDeepSeekKeySource, readDaemonProfileKey, maskKey };
