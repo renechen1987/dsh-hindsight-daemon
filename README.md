@@ -107,6 +107,19 @@ zsh ~/.dsh/plugins/dsh-hindsight-daemon/scripts/uninstall.sh
 - **功能**:概览统计(记忆数/文档数/文本量)、记忆浏览/搜索/详情/删除、文档列表/重处理/删除、知识页搜索与树、审计日志、一键触发整合、LLM 连通测试、深度记忆查询(reflect)
 - **原理**:独立本地 HTTP 服务(仅绑定 127.0.0.1),页面与 API 代理同源,不依赖 DSH 的浏览器访问控制(Safari 等外部浏览器可直接打开)
 
+## 🔁 跨机器迁移记忆(导入导出,v1.12.0+)
+
+记忆按机器本地存储,默认不互通;要**把本机记忆搬到另一台机器**,用管理页的「Export & Import」:
+
+1. **A 机导出**:打开管理页 `http://127.0.0.1:43121` → **Export & Import** 标签 → 选好 bank → **⬇ Export memory** → 自动下载 `*.zip`(含文档 + 记忆事实)
+2. **拷贝 zip** 到 B 机
+3. **B 机导入**:同样打开它的管理页 **Export & Import** → 选相同 bank → 选文件 → **⬆ Import memory** → 文档重建,记忆自动重新抽取
+4. 之后 B 机的会话就能 recall 这些记忆
+
+> 底层:daemon 原生 `POST /document-transfer/export`(异步,轮询 `operations/{id}` 取 `download_url` 下载 zip)与 `POST /document-transfer`(multipart `file` 导入)。导出/导入也可直接 curl 这些 API。
+
+> 说明:知识页可单独用 `/knowledge-base/export` 导出为 markdown bundle。
+
 ## 📄 许可
 
 MIT
