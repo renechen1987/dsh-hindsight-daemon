@@ -109,6 +109,7 @@
   <div class="tab" data-t="audit">Audit</div>
   <div class="tab" data-t="routing">Banks &amp; Routing</div>
   <div class="tab" data-t="settings">Settings</div>
+  <div class="tab" data-t="transfer">Export &amp; Import</div>
 </div>
 
 <div class="panel on" id="p-overview">
@@ -204,6 +205,29 @@
   <div class="dim" style="margin-top:8px">Saved to the plugin config — takes effect on the <b>next DSH restart</b>.</div>
 </div>
 
+<div class="panel" id="p-transfer">
+  <h2>Export memory (move to another machine)</h2>
+  <div class="dim" style="margin-bottom:10px">
+    Exports the selected bank's documents + memories (a <span class="mono">*.zip</span>) you can carry to another machine.
+    Bank: <span class="mono" id="transfer-bank"></span>
+  </div>
+  <div class="row">
+    <button id="btn-export">⬇ Export memory</button>
+    <span id="export-status" class="dim"></span>
+  </div>
+
+  <h2 style="margin-top:20px">Import memory</h2>
+  <div class="dim" style="margin-bottom:10px">
+    Import a <span class="mono">*.zip</span> exported from another machine into the selected bank (recreates documents → memories).
+  </div>
+  <div class="row">
+    <input type="file" id="import-file" accept=".zip" style="max-width:340px;">
+    <button id="btn-import">⬆ Import memory</button>
+  </div>
+  <span id="import-status" class="dim"></span>
+  <div class="dim" style="margin-top:8px">Import is async — memories are re-extracted after the docs are imported.</div>
+</div>
+
 <div id="toast" class="toast"></div>
 
 <script>
@@ -240,6 +264,7 @@ document.querySelectorAll(".tab").forEach((el) => el.onclick = () => {
   document.querySelectorAll(".panel").forEach((p) => p.classList.toggle("on", p.id === `p-${el.dataset.t}`));
   if (el.dataset.t === "routing") loadRouting();
   if (el.dataset.t === "settings") loadKeyStatus();
+  if (el.dataset.t === "transfer") setTransferBank();
 });
 
 // ---- overview ----
@@ -518,6 +543,56 @@ $("#btn-key-save").onclick = async () => {
   btn.disabled = false;
 };
 $("#key-show").onchange = (e) => { $("#key-input").type = e.target.checked ? "text" : "password"; };
+
+// ---- Export & Import ----
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+function setTransferBank() {
+  $("#transfer-bank").textContent = decodeURIComponent(BANK);
+}
+$("#btn-export").onclick = async () => {
+  const btn = $("#btn-export"), st = $("#export-status");
+  btn.disabled = true; st.textContent = "Starting export…";
+  try {
+    const op = await api(`/v1/default/banks/${BANK}/document-transfer/export`, { method: "POST", body: "{}" });
+    const opId = op.operation_id;
+    st.textContent = "Exporting… (documents, may take a moment)";
+    let state = null;
+    for (let i = 0; i < 60; i++) {
+      await sleep(1500);
+      state = await api(`/v1/default/banks/${BANK}/operations/${opId}`);
+      if (state.status === "completed") break;
+      if (state.status === "failed") throw new Error("export failed");
+    }
+    if (!state || state.status !== "completed") throw new Error("export timed out");
+    const meta = state.result_metadata || {};
+    st.textContent = `✅ ${meta.filename || "memory.zip"} (${((meta.byte_size || 0) / 1024).toFixed(0)} KB) — downloading…`;
+    const dl = meta.download_url;
+    if (dl) {
+      const a = document.createElement("a");
+      a.href = `/api${dl}`;
+      a.download = meta.filename || "memory.zip";
+      document.body.appendChild(a); a.click(); a.remove();
+      st.textContent = `✅ Exported ${meta.filename || "memory.zip"} (${((meta.byte_size || 0) / 1024).toFixed(0)} KB)`;
+    }
+  } catch (e) { st.textContent = "❌ " + e.message; }
+  btn.disabled = false;
+};
+$("#btn-import").onclick = async () => {
+  const btn = $("#btn-import"), st = $("#import-status");
+  const file = $("#import-file").files[0];
+  if (!file) { st.textContent = "❌ Choose a .zip file first."; return; }
+  btn.disabled = true; st.textContent = "Uploading & importing…";
+  try {
+    const fd = new FormData();
+    fd.append("file", file);
+    const r = await fetch(`/api/v1/default/banks/${BANK}/document-transfer`, { method: "POST", body: fd });
+    const j = await r.json();
+    if (!r.ok) throw new Error(j.error || `HTTP ${r.status}`);
+    st.textContent = `✅ Import started (op ${j.operation_id || ""}). Memories re-extract shortly.`;
+    loadOverview();
+  } catch (e) { st.textContent = "❌ " + e.message; }
+  btn.disabled = false;
+};
 
 // ---- init ----
 loadBanks();
