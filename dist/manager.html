@@ -206,15 +206,12 @@
   </div>
   <div id="key-status" class="dim" style="margin-bottom:8px">Loading…</div>
   <div class="row">
-    <input id="key-input" type="password" placeholder="sk-… (leave empty to clear)" style="max-width:480px;" autocomplete="off">
-    <label style="display:inline-flex;align-items:center;gap:4px;font-size:12px;color:var(--dsw-label-secondary);">
-      <input type="checkbox" id="key-show"> show
-    </label>
+    <input id="key-input" type="password" placeholder="Configured — enter a new key to replace (leave empty = keep current)" style="max-width:520px;" autocomplete="off">
   </div>
   <div class="row">
     <button id="btn-key-save" style="border-color:var(--dsw-accent);">Save key</button>
   </div>
-  <div class="dim" style="margin-top:8px">Saved to the plugin config — takes effect on the <b>next DSH restart</b>.</div>
+  <div class="dim" style="margin-top:8px">Leave the field empty and click Save to <b>keep the current key</b>.</div>
 
   <h2 style="margin-top:22px">Memory toggles (token control)</h2>
   <div class="dim" style="margin-bottom:8px">Hindsight costs tokens (session-start reflect, injection, retention). Turn parts off to save.</div>
@@ -554,12 +551,15 @@ async function loadKeyStatus() {
   s.textContent = "Loading…";
   try {
     const r = await api("/plugin/key");
+    const input = $("#key-input");
     if (r.configured) {
-      s.textContent = `● Configured via ${r.source} (${r.prefix}…)`;
+      s.textContent = `Configured via ${r.source} (${r.prefix}…)`;
       s.style.color = "var(--dsw-label-primary)";
+      input.placeholder = `Configured (${r.prefix}…) — enter a new key to replace, leave empty to keep`;
     } else {
-      s.textContent = "○ Not configured — the plugin will auto-detect a local DeepSeek key (env / DSH credentials).";
+      s.textContent = "Not configured — the plugin will auto-detect a local DeepSeek key (env / DSH credentials).";
       s.style.color = "var(--dsw-label-tertiary)";
+      input.placeholder = "sk-… enter the DeepSeek API key";
     }
   } catch (e) {
     s.textContent = " " + e.message;
@@ -570,15 +570,20 @@ $("#btn-key-save").onclick = async () => {
   const btn = $("#btn-key-save");
   btn.disabled = true;
   try {
+    // 防误清空:输入为空 = 保持不变,不覆盖已配置 key
+    if (v === "") {
+      toast("Key unchanged (field empty — keeping current key).");
+      btn.disabled = false;
+      return;
+    }
     const r = await api("/plugin/key", { method: "PUT", body: JSON.stringify({ apiKey: v }) });
     if (!r.ok) throw new Error(r.error || "save failed");
     $("#key-input").value = "";
-    toast(v ? " Key saved. Takes effect on next DSH restart." : " Key cleared.");
+    toast(" Key saved. Takes effect on next DSH restart.");
     loadKeyStatus();
   } catch (err) { toast(" " + err.message); }
   btn.disabled = false;
 };
-$("#key-show").onchange = (e) => { $("#key-input").type = e.target.checked ? "text" : "password"; };
 
 // ---- Export & Import ----
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
