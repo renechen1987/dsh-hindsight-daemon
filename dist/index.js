@@ -405,11 +405,32 @@ async function handlePluginConfig(req, res, pathname) {
           delete next.mapPathToBank;
         }
       }
+      // 顶层布尔开关:总开关 disabled / 自动反射 autoReflect / 会话保留 retainSessions
+      for (const key of ["disabled", "autoReflect", "retainSessions"]) {
+        if (typeof body[key] === "boolean") next[key] = body[key];
+      }
+      // 按项目(记忆库)禁用:disabledBanks 数组 → banks.<id>.disabled
+      if (Array.isArray(body.disabledBanks)) {
+        next.banks = next.banks && typeof next.banks === "object" ? next.banks : {};
+        for (const name of ["disabledBanks", "disabledBanksCleared"]) delete next[name];
+        const disabledSet = new Set(body.disabledBanks.map((x) => String(x).trim()).filter(Boolean));
+        // 先清空已有的 disabled 标记,再按本次列表重建
+        for (const [id, section] of Object.entries(next.banks)) {
+          if (section && typeof section === "object") delete section.disabled;
+        }
+        for (const id of disabledSet) {
+          next.banks[id] = next.banks[id] && typeof next.banks[id] === "object" ? next.banks[id] : {};
+          next.banks[id].disabled = true;
+        }
+        if (Object.keys(next.banks).length === 0) delete next.banks;
+      }
       writePluginConfigRaw(next);
-      log(`配置已更新:bankId=${next.bankId ?? "(auto)"}, 映射 ${Object.keys(next.mapPathToBank ?? {}).length} 条`);
+      log(`配置已更新:bankId=${next.bankId ?? "(auto)"}, 映射 ${Object.keys(next.mapPathToBank ?? {}).length} 条, disabled=${next.disabled ?? false}, autoReflect=${next.autoReflect ?? true}`);
       diag("config_updated", {
         bankId: next.bankId ?? null,
         mappings: Object.entries(next.mapPathToBank ?? {}).map(([p, b]) => `${p}→${b}`),
+        disabled: next.disabled ?? false,
+        autoReflect: next.autoReflect ?? true,
       });
       res.writeHead(200, JSON_HEADERS);
       res.end(JSON.stringify({ ok: true, config: next }));
