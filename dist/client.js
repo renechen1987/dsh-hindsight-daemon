@@ -11,7 +11,7 @@ window.__ModuleLoader__.load({
     var react = require("react");
     var NS = "dsh-hindsight-daemon";
     var DICT = {
-      "settings.title": "🧠 Hindsight Memory",
+      "settings.title": "Hindsight Memory",
       "settings.description": "Local memory: browse / search / delete memories, documents, knowledge pages, audit logs, deep queries.",
       "settings.open": "Open Manager ↗",
       "settings.collapse": "Collapse",

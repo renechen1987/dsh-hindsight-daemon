@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>🧠 Hindsight Memory Manager</title>
+<title>Hindsight Memory Manager</title>
 <style>
   /* DSH 设计令牌(取自 @deepseek-ai/dsh-client-ui-theme,与 DSH 界面一致) */
   :root {
@@ -103,14 +103,14 @@
 </head>
 <body>
 <div class="bar">
-  <h1>🧠 Hindsight Memory Manager</h1>
+  <h1>Hindsight Memory Manager</h1>
   <span id="health" class="badge">Checking…</span>
   <label style="display:inline-flex;align-items:center;gap:6px;font-size:13px;color:var(--dsw-label-secondary);">
     Bank
     <select id="bank-select" title="Switch memory bank" style="max-width:260px;"></select>
   </label>
   <span style="flex:1"></span>
-  <button id="theme-toggle" class="icon-btn" title="Toggle theme">🌓</button>
+  <button id="theme-toggle" class="icon-btn" title="Toggle theme"></button>
   <a href="http://127.0.0.1:43120" style="color:var(--dsw-label-tertiary);font-size:13px;text-decoration:none;">← Back to DSH</a>
 </div>
 <div class="tabs">
@@ -128,14 +128,14 @@
   <div class="cards" id="cards"></div>
   <h2>Actions</h2>
   <div class="row">
-    <button id="btn-consolidate">🔄 Consolidate now</button>
-    <button id="btn-llm">⚡ Test LLM</button>
-    <button id="btn-refresh">🔃 Refresh</button>
+    <button id="btn-consolidate">Consolidate now</button>
+    <button id="btn-llm">Test LLM</button>
+    <button id="btn-refresh">Refresh</button>
   </div>
   <h2 style="margin-top:16px">Deep memory query (reflect)</h2>
   <textarea id="reflect-q" placeholder="e.g. What pitfalls did this project hit before? What decisions were made?"></textarea>
   <div class="row">
-    <button id="btn-reflect">🧠 Query memory</button>
+    <button id="btn-reflect">Query memory</button>
   </div>
   <pre id="reflect-out" class="dim" style="margin-top:8px"></pre>
 </div>
@@ -143,7 +143,7 @@
 <div class="panel" id="p-memories">
   <div class="row">
     <input id="mem-filter" placeholder="Search memories (keyword)…">
-    <button id="btn-mem-del-all" class="danger">🗑 Clear all memories (danger)</button>
+    <button id="btn-mem-del-all" class="danger"> Clear all memories (danger)</button>
   </div>
   <table id="mem-table">
     <thead><tr><th style="width:40%">Content</th><th>Type</th><th>Entities</th><th>Date</th><th style="width:70px">Actions</th></tr></thead>
@@ -153,7 +153,7 @@
 </div>
 
 <div class="panel" id="p-docs">
-  <div class="row"><button id="btn-docs-refresh">🔃 Refresh documents</button></div>
+  <div class="row"><button id="btn-docs-refresh">Refresh documents</button></div>
   <table id="doc-table">
     <thead><tr><th>Document ID</th><th>Text size</th><th>Memory units</th><th>Updated</th><th style="width:130px">Actions</th></tr></thead>
     <tbody></tbody>
@@ -164,14 +164,14 @@
 <div class="panel" id="p-pages">
   <div class="row">
     <input id="page-q" placeholder="Search knowledge pages…">
-    <button id="btn-page-search">🔍 Search</button>
-    <button id="btn-page-tree">🌲 Show tree</button>
+    <button id="btn-page-search">Search</button>
+    <button id="btn-page-tree">Show tree</button>
   </div>
   <pre id="page-out" class="dim"></pre>
 </div>
 
 <div class="panel" id="p-audit">
-  <div class="row"><button id="btn-audit-refresh">🔃 Refresh audit</button></div>
+  <div class="row"><button id="btn-audit-refresh">Refresh audit</button></div>
   <table id="audit-table">
     <thead><tr><th>Time</th><th>Action</th><th>Details</th></tr></thead>
     <tbody></tbody>
@@ -192,7 +192,7 @@
   <div id="cfg-mappings"></div>
   <div class="row" style="margin-top:10px">
     <button id="cfg-add-map">＋ Add mapping</button>
-    <button id="cfg-save" style="border-color:var(--dsw-accent);">💾 Save routing</button>
+    <button id="cfg-save" style="border-color:var(--dsw-accent);">Save routing</button>
   </div>
   <div class="dim" style="margin-top:8px">Saved to ~/.hindsight/coding-agent.json — applies to <b>new sessions</b>.</div>
 </div>
@@ -212,7 +212,7 @@
     </label>
   </div>
   <div class="row">
-    <button id="btn-key-save" style="border-color:var(--dsw-accent);">💾 Save key</button>
+    <button id="btn-key-save" style="border-color:var(--dsw-accent);">Save key</button>
   </div>
   <div class="dim" style="margin-top:8px">Saved to the plugin config — takes effect on the <b>next DSH restart</b>.</div>
 
@@ -236,7 +236,7 @@
   <div id="bank-toggles"></div>
 
   <div class="row" style="margin-top:10px">
-    <button id="btn-toggle-save" style="border-color:var(--dsw-accent);">💾 Save toggles</button>
+    <button id="btn-toggle-save" style="border-color:var(--dsw-accent);">Save toggles</button>
   </div>
   <div class="dim" style="margin-top:8px">Applies to <b>new sessions</b>.</div>
 </div>
@@ -248,7 +248,7 @@
     Bank: <span class="mono" id="transfer-bank"></span>
   </div>
   <div class="row">
-    <button id="btn-export">⬇ Export memory</button>
+    <button id="btn-export">Export memory</button>
     <span id="export-status" class="dim"></span>
   </div>
 
@@ -258,7 +258,7 @@
   </div>
   <div class="row">
     <input type="file" id="import-file" accept=".zip" style="max-width:340px;">
-    <button id="btn-import">⬆ Import memory</button>
+    <button id="btn-import">Import memory</button>
   </div>
   <span id="import-status" class="dim"></span>
   <div class="dim" style="margin-top:8px">Import is async — memories are re-extracted after the docs are imported.</div>
@@ -324,14 +324,14 @@ async function loadOverview() {
 }
 $("#btn-consolidate").onclick = async (e) => {
   e.target.disabled = true; e.target.textContent = "Consolidating…";
-  try { const r = await api(`/v1/default/banks/${BANK}/consolidate`, { method: "POST" }); toast("✅ Consolidation triggered: " + JSON.stringify(r).slice(0,120)); }
-  catch (err) { toast("❌ " + err.message); }
-  e.target.disabled = false; e.target.textContent = "🔄 Consolidate now";
+  try { const r = await api(`/v1/default/banks/${BANK}/consolidate`, { method: "POST" }); toast(" Consolidation triggered: " + JSON.stringify(r).slice(0,120)); }
+  catch (err) { toast(" " + err.message); }
+  e.target.disabled = false; e.target.textContent = " Consolidate now";
 };
 $("#btn-llm").onclick = async (e) => {
   e.target.disabled = true;
-  try { const r = await api(`/v1/default/banks/${BANK}/health/llm`, { method: "POST" }); toast("✅ LLM connected: " + JSON.stringify(r).slice(0,150)); }
-  catch (err) { toast("❌ " + err.message); }
+  try { const r = await api(`/v1/default/banks/${BANK}/health/llm`, { method: "POST" }); toast(" LLM connected: " + JSON.stringify(r).slice(0,150)); }
+  catch (err) { toast(" " + err.message); }
   e.target.disabled = false;
 };
 $("#btn-reflect").onclick = async () => {
@@ -341,7 +341,7 @@ $("#btn-reflect").onclick = async () => {
   try {
     const r = await api(`/v1/default/banks/${BANK}/reflect`, { method: "POST", body: JSON.stringify({ query: q }) });
     $("#reflect-out").textContent = r.answer ?? JSON.stringify(r, null, 2);
-  } catch (err) { $("#reflect-out").textContent = "❌ " + err.message; }
+  } catch (err) { $("#reflect-out").textContent = " " + err.message; }
 };
 $("#btn-refresh").onclick = loadOverview;
 
@@ -349,7 +349,7 @@ $("#btn-refresh").onclick = loadOverview;
 async function loadMemories(filter = "") {
   let items = [];
   try { items = (await api(`/v1/default/banks/${BANK}/memories/list`)).items ?? []; }
-  catch (e) { toast("❌ " + e.message); return; }
+  catch (e) { toast(" " + e.message); return; }
   const f = filter.toLowerCase();
   const rows = items.filter((m) => !f || (m.text ?? "").toLowerCase().includes(f) || (m.entities ?? "").toLowerCase().includes(f) || (m.tags ?? []).join().toLowerCase().includes(f));
   const tbody = document.querySelector("#mem-table tbody");
@@ -374,26 +374,26 @@ window.toggleDetail = async (id) => {
     try {
       const m = await api(`/v1/default/banks/${BANK}/memories/${encodeURIComponent(id)}`);
       el.innerHTML = `<pre>${esc(JSON.stringify(m, null, 2))}</pre>`;
-    } catch (e) { el.textContent = "❌ " + e.message; }
+    } catch (e) { el.textContent = " " + e.message; }
   }
 };
 window.delMemory = async (id) => {
   if (!confirm("Delete this memory?")) return;
-  try { await api(`/v1/default/banks/${BANK}/memories/${encodeURIComponent(id)}/observations`, { method: "DELETE" }); toast("✅ Deleted"); loadMemories($("#mem-filter").value); }
-  catch (e) { toast("❌ " + e.message); }
+  try { await api(`/v1/default/banks/${BANK}/memories/${encodeURIComponent(id)}/observations`, { method: "DELETE" }); toast(" Deleted"); loadMemories($("#mem-filter").value); }
+  catch (e) { toast(" " + e.message); }
 };
 $("#mem-filter").oninput = (e) => loadMemories(e.target.value);
 $("#btn-mem-del-all").onclick = async () => {
-  if (!confirm("⚠️ Clear ALL memories in this bank? This cannot be undone!")) return;
-  try { await api(`/v1/default/banks/${BANK}/memories`, { method: "DELETE" }); toast("✅ Cleared"); loadMemories(); }
-  catch (e) { toast("❌ " + e.message); }
+  if (!confirm(" Clear ALL memories in this bank? This cannot be undone!")) return;
+  try { await api(`/v1/default/banks/${BANK}/memories`, { method: "DELETE" }); toast(" Cleared"); loadMemories(); }
+  catch (e) { toast(" " + e.message); }
 };
 
 // ---- docs ----
 async function loadDocs() {
   let items = [];
   try { items = (await api(`/v1/default/banks/${BANK}/documents`)).items ?? []; }
-  catch (e) { toast("❌ " + e.message); return; }
+  catch (e) { toast(" " + e.message); return; }
   document.querySelector("#doc-table tbody").innerHTML = items.map((d) => `
     <tr>
       <td class="mono">${esc(d.id)}</td>
@@ -408,13 +408,13 @@ async function loadDocs() {
   $("#doc-empty").style.display = items.length ? "none" : "block";
 }
 window.reprocessDoc = async (id) => {
-  try { await api(`/v1/default/banks/${BANK}/documents/${encodeURIComponent(id)}/reprocess`, { method: "POST" }); toast("✅ Reprocessed"); }
-  catch (e) { toast("❌ " + e.message); }
+  try { await api(`/v1/default/banks/${BANK}/documents/${encodeURIComponent(id)}/reprocess`, { method: "POST" }); toast(" Reprocessed"); }
+  catch (e) { toast(" " + e.message); }
 };
 window.delDoc = async (id) => {
   if (!confirm("Delete this document? Its memory units will be removed too.")) return;
-  try { await api(`/v1/default/banks/${BANK}/documents/${encodeURIComponent(id)}`, { method: "DELETE" }); toast("✅ Deleted"); loadDocs(); }
-  catch (e) { toast("❌ " + e.message); }
+  try { await api(`/v1/default/banks/${BANK}/documents/${encodeURIComponent(id)}`, { method: "DELETE" }); toast(" Deleted"); loadDocs(); }
+  catch (e) { toast(" " + e.message); }
 };
 $("#btn-docs-refresh").onclick = loadDocs;
 
@@ -425,11 +425,11 @@ $("#btn-page-search").onclick = async () => {
   try {
     const r = await api(`/v1/default/banks/${BANK}/knowledge-base/search?q=${encodeURIComponent(q)}`);
     $("#page-out").textContent = JSON.stringify(r, null, 2);
-  } catch (e) { $("#page-out").textContent = "❌ " + e.message; }
+  } catch (e) { $("#page-out").textContent = " " + e.message; }
 };
 $("#btn-page-tree").onclick = async () => {
   try { $("#page-out").textContent = JSON.stringify(await api(`/v1/default/banks/${BANK}/knowledge-base/tree`), null, 2); }
-  catch (e) { $("#page-out").textContent = "❌ " + e.message; }
+  catch (e) { $("#page-out").textContent = " " + e.message; }
 };
 
 // ---- audit ----
@@ -440,7 +440,7 @@ async function loadAudit() {
     document.querySelector("#audit-table tbody").innerHTML = items.map((a) => `
       <tr><td class="dim" style="white-space:nowrap">${fmt(a.timestamp ?? a.created_at)}</td><td>${esc(a.action ?? a.type ?? "-")}</td><td class="mono">${esc(JSON.stringify(a.detail ?? a.metadata ?? "").slice(0,150))}</td></tr>`).join("");
     $("#audit-empty").style.display = items.length ? "none" : "block";
-  } catch (e) { toast("❌ " + e.message); }
+  } catch (e) { toast(" " + e.message); }
 }
 $("#btn-audit-refresh").onclick = loadAudit;
 
@@ -472,7 +472,7 @@ $("#bank-select").onchange = (e) => {
   BANK = encodeURIComponent(e.target.value);
   try { localStorage.setItem("dhh-bank", e.target.value); } catch {}
   reloadAll();
-  toast("✅ Switched to bank: " + e.target.value);
+  toast(" Switched to bank: " + e.target.value);
 };
 
 // ---- Banks & Routing 配置页 ----
@@ -522,7 +522,7 @@ async function loadRouting() {
   } catch (e) {
     $("#cfg-mappings").innerHTML = "";
     addMappingRow();
-    toast("❌ " + e.message);
+    toast(" " + e.message);
   }
 }
 $("#cfg-add-map").onclick = () => addMappingRow();
@@ -543,8 +543,8 @@ $("#cfg-save").onclick = async () => {
     });
     if (!r.ok) throw new Error(r.error || "save failed");
     try { localStorage.setItem("dhh-cfg", JSON.stringify(r.config)); } catch {}
-    toast("✅ Saved. Applies to new sessions.");
-  } catch (err) { toast("❌ " + err.message); }
+    toast("Saved. Applies to new sessions.");
+  } catch (err) { toast(" " + err.message); }
   btn.disabled = false;
 };
 
@@ -562,7 +562,7 @@ async function loadKeyStatus() {
       s.style.color = "var(--dsw-label-tertiary)";
     }
   } catch (e) {
-    s.textContent = "❌ " + e.message;
+    s.textContent = " " + e.message;
   }
 }
 $("#btn-key-save").onclick = async () => {
@@ -573,9 +573,9 @@ $("#btn-key-save").onclick = async () => {
     const r = await api("/api/plugin/key", { method: "PUT", body: JSON.stringify({ apiKey: v }) });
     if (!r.ok) throw new Error(r.error || "save failed");
     $("#key-input").value = "";
-    toast(v ? "✅ Key saved. Takes effect on next DSH restart." : "✅ Key cleared.");
+    toast(v ? " Key saved. Takes effect on next DSH restart." : " Key cleared.");
     loadKeyStatus();
-  } catch (err) { toast("❌ " + err.message); }
+  } catch (err) { toast(" " + err.message); }
   btn.disabled = false;
 };
 $("#key-show").onchange = (e) => { $("#key-input").type = e.target.checked ? "text" : "password"; };
@@ -601,22 +601,22 @@ $("#btn-export").onclick = async () => {
     }
     if (!state || state.status !== "completed") throw new Error("export timed out");
     const meta = state.result_metadata || {};
-    st.textContent = `✅ ${meta.filename || "memory.zip"} (${((meta.byte_size || 0) / 1024).toFixed(0)} KB) — downloading…`;
+    st.textContent = ` ${meta.filename || "memory.zip"} (${((meta.byte_size || 0) / 1024).toFixed(0)} KB) — downloading…`;
     const dl = meta.download_url;
     if (dl) {
       const a = document.createElement("a");
       a.href = `/api${dl}`;
       a.download = meta.filename || "memory.zip";
       document.body.appendChild(a); a.click(); a.remove();
-      st.textContent = `✅ Exported ${meta.filename || "memory.zip"} (${((meta.byte_size || 0) / 1024).toFixed(0)} KB)`;
+      st.textContent = ` Exported ${meta.filename || "memory.zip"} (${((meta.byte_size || 0) / 1024).toFixed(0)} KB)`;
     }
-  } catch (e) { st.textContent = "❌ " + e.message; }
+  } catch (e) { st.textContent = " " + e.message; }
   btn.disabled = false;
 };
 $("#btn-import").onclick = async () => {
   const btn = $("#btn-import"), st = $("#import-status");
   const file = $("#import-file").files[0];
-  if (!file) { st.textContent = "❌ Choose a .zip file first."; return; }
+  if (!file) { st.textContent = " Choose a .zip file first."; return; }
   btn.disabled = true; st.textContent = "Uploading & importing…";
   try {
     const fd = new FormData();
@@ -624,9 +624,9 @@ $("#btn-import").onclick = async () => {
     const r = await fetch(`/api/v1/default/banks/${BANK}/document-transfer`, { method: "POST", body: fd });
     const j = await r.json();
     if (!r.ok) throw new Error(j.error || `HTTP ${r.status}`);
-    st.textContent = `✅ Import started (op ${j.operation_id || ""}). Memories re-extract shortly.`;
+    st.textContent = ` Import started (op ${j.operation_id || ""}). Memories re-extract shortly.`;
     loadOverview();
-  } catch (e) { st.textContent = "❌ " + e.message; }
+  } catch (e) { st.textContent = " " + e.message; }
   btn.disabled = false;
 };
 
@@ -664,9 +664,9 @@ $("#btn-toggle-save").onclick = async () => {
       }),
     });
     if (!r.ok) throw new Error(r.error || "save failed");
-    toast("✅ Toggles saved. Applies to new sessions.");
+    toast(" Toggles saved. Applies to new sessions.");
     loadToggles();
-  } catch (err) { toast("❌ " + err.message); }
+  } catch (err) { toast(" " + err.message); }
   btn.disabled = false;
 };
 

@@ -14,7 +14,7 @@
   btn.href = base + "/";
   btn.target = "_blank";
   btn.rel = "noopener";
-  btn.textContent = "🧠 Memory";
+  btn.textContent = "Memory";
   btn.title = "Open Hindsight memory manager";
   btn.style.cssText =
     "position:fixed;right:18px;bottom:18px;z-index:2147483000;" +
