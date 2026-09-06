@@ -506,7 +506,7 @@ async function loadRouting() {
   const currentFixed = (() => { try { return (JSON.parse(localStorage.getItem("dhh-cfg")) || {}).bankId || ""; } catch { return ""; } })();
   fixedSel.innerHTML = `<option value="">(auto — per project folder)</option>` + bankOptions(currentFixed);
   try {
-    const r = await api("/api/plugin/config", { method: "GET" });
+    const r = await api("/plugin/config", { method: "GET" });
     const cfg = r.config || {};
     let saved = {}; try { saved = JSON.parse(localStorage.getItem("dhh-cfg")) || {}; } catch {}
     saved = { ...cfg, ...saved };
@@ -537,7 +537,7 @@ $("#cfg-save").onclick = async () => {
   const btn = $("#cfg-save");
   btn.disabled = true;
   try {
-    const r = await api("/api/plugin/config", {
+    const r = await api("/plugin/config", {
       method: "PUT",
       body: JSON.stringify({ bankId: bankId || "", mapPathToBank }),
     });
@@ -553,7 +553,7 @@ async function loadKeyStatus() {
   const s = $("#key-status");
   s.textContent = "Loading…";
   try {
-    const r = await api("/api/plugin/key");
+    const r = await api("/plugin/key");
     if (r.configured) {
       s.textContent = `● Configured via ${r.source} (${r.prefix}…)`;
       s.style.color = "var(--dsw-label-primary)";
@@ -570,7 +570,7 @@ $("#btn-key-save").onclick = async () => {
   const btn = $("#btn-key-save");
   btn.disabled = true;
   try {
-    const r = await api("/api/plugin/key", { method: "PUT", body: JSON.stringify({ apiKey: v }) });
+    const r = await api("/plugin/key", { method: "PUT", body: JSON.stringify({ apiKey: v }) });
     if (!r.ok) throw new Error(r.error || "save failed");
     $("#key-input").value = "";
     toast(v ? " Key saved. Takes effect on next DSH restart." : " Key cleared.");
@@ -632,7 +632,7 @@ $("#btn-import").onclick = async () => {
 
 // ---- Memory toggles ----
 async function loadToggles() {
-  const cfg = (await api("/api/plugin/config")).config || {};
+  const cfg = (await api("/plugin/config")).config || {};
   $("#toggle-master").checked = cfg.disabled === true;
   $("#toggle-reflect").checked = cfg.autoReflect !== false; // 默认开
   $("#toggle-readonly").checked = cfg.retainSessions === false; // 只读=停止保留新会话
@@ -654,7 +654,7 @@ $("#btn-toggle-save").onclick = async () => {
   const btn = $("#btn-toggle-save");
   btn.disabled = true;
   try {
-    const r = await api("/api/plugin/config", {
+    const r = await api("/plugin/config", {
       method: "PUT",
       body: JSON.stringify({
         disabled: $("#toggle-master").checked,
