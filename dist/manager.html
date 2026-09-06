@@ -87,6 +87,18 @@
   .toast { position:fixed; bottom:20px; left:50%; transform:translateX(-50%); background:var(--dsw-bg-layer3); border:1px solid var(--dsw-border-l3); box-shadow:0 4px 16px #00000040; padding:8px 18px; border-radius:8px; font-size:13px; display:none; z-index:99; }
   pre { white-space:pre-wrap; word-break:break-all; }
   .icon-btn { padding:2px 8px; border-radius:999px; font-size:12px; }
+  /* Switch 开关(ON/OFF 滑块) */
+  .tgl-row { display:flex; align-items:flex-start; gap:12px; margin:10px 0; cursor:pointer; }
+  .tgl-text { flex:1; min-width:0; }
+  .tgl-title { font-size:14px; color:var(--dsw-label-primary); }
+  .tgl-desc { font-size:12px; color:var(--dsw-label-tertiary); line-height:1.4; margin-top:2px; }
+  .dhh-switch { position:relative; display:inline-block; width:36px; height:20px; flex:none; margin-top:3px; }
+  .dhh-switch input { position:absolute; opacity:0; inset:0; margin:0; cursor:pointer; }
+  .dhh-switch .track { position:absolute; inset:0; border-radius:10px; background:var(--dsw-bg-module); border:1px solid var(--dsw-border-l2); transition:background .15s,border-color .15s; }
+  .dhh-switch input:checked + .track { background:var(--dsw-accent); border-color:var(--dsw-accent); }
+  .dhh-switch .knob { position:absolute; top:3px; left:3px; width:14px; height:14px; border-radius:50%; background:var(--dsw-label-secondary); transition:left .15s,background .15s; }
+  .dhh-switch input:checked + .track + .knob { left:19px; background:var(--dsw-label-primary); }
+  .dhh-switch input:focus-visible + .track { outline:2px solid var(--dsw-accent); outline-offset:2px; }
 </style>
 </head>
 <body>
@@ -206,18 +218,18 @@
 
   <h2 style="margin-top:22px">Memory toggles (token control)</h2>
   <div class="dim" style="margin-bottom:8px">Hindsight costs tokens (session-start reflect, injection, retention). Turn parts off to save.</div>
-  <label class="row" style="align-items:center;cursor:pointer;">
-    <input type="checkbox" id="toggle-master"> <b>Hindsight memory (master)</b>
+  <label class="tgl-row">
+    <span class="dhh-switch"><input type="checkbox" id="toggle-master"><span class="track"></span><span class="knob"></span></span>
+    <span class="tgl-text"><span class="tgl-title">Hindsight memory (master)</span><span class="tgl-desc">Off = plugin inert, no injection / no retain / no reflect (saves the most).</span></span>
   </label>
-  <div class="dim" style="margin-bottom:10px">Off = plugin inert, no injection / no retain / no reflect (saves the most).</div>
-  <label class="row" style="align-items:center;cursor:pointer;">
-    <input type="checkbox" id="toggle-reflect"> <b>Auto-reflect on session start</b>
+  <label class="tgl-row">
+    <span class="dhh-switch"><input type="checkbox" id="toggle-reflect"><span class="track"></span><span class="knob"></span></span>
+    <span class="tgl-text"><span class="tgl-title">Auto-reflect on session start</span><span class="tgl-desc">Off = tool-only reflect, no one-time LLM synthesis at session start (big per-session token saver).</span></span>
   </label>
-  <div class="dim" style="margin-bottom:12px">Off = tool-only reflect, no one-time LLM synthesis at session start (big per-session token saver).</div>
-  <label class="row" style="align-items:center;cursor:pointer;">
-    <input type="checkbox" id="toggle-readonly"> <b>Read-only (use existing memory, stop producing new)</b>
+  <label class="tgl-row">
+    <span class="dhh-switch"><input type="checkbox" id="toggle-readonly"><span class="track"></span><span class="knob"></span></span>
+    <span class="tgl-text"><span class="tgl-title">Read-only (use existing memory, stop producing new)</span><span class="tgl-desc">Keeps recall / search of existing memory; stops writing <b>new</b> memories from conversations (saves retain/extraction tokens).</span></span>
   </label>
-  <div class="dim" style="margin-bottom:12px">Keeps recall / search of existing memory; stops writing <b>new</b> memories from conversations (saves retain/extraction tokens).</div>
 
   <h2 style="margin-top:6px">Per-project (per-bank) switches</h2>
   <div class="dim" style="margin-bottom:8px">Disable memory for specific projects/banks.</div>
@@ -630,10 +642,10 @@ async function loadToggles() {
   for (const b of banks) {
     const off = cfg.banks && cfg.banks[b] && cfg.banks[b].disabled === true;
     const row = document.createElement("label");
-    row.className = "row";
-    row.style.cssText = "align-items:center;cursor:pointer;gap:8px;";
-    row.innerHTML = `<input type="checkbox" class="bank-off" value="${esc(b)}" ${off ? "checked" : ""}>
-      <span>${esc(b)}${off ? " &nbsp;<span class='dim'>(memory off)</span>" : ""}</span>`;
+    row.className = "tgl-row";
+    row.innerHTML = `
+      <span class="dhh-switch"><input type="checkbox" class="bank-off" value="${esc(b)}" ${off ? "checked" : ""}><span class="track"></span><span class="knob"></span></span>
+      <span class="tgl-text"><span class="tgl-title">${esc(b)}</span><span class="tgl-desc">${off ? "This project's memory is off." : "Memory on for this project."}</span></span>`;
     box.appendChild(row);
   }
 }
