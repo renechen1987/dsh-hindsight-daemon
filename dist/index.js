@@ -409,18 +409,18 @@ async function handlePluginConfig(req, res, pathname) {
       for (const key of ["disabled", "autoReflect", "retainSessions"]) {
         if (typeof body[key] === "boolean") next[key] = body[key];
       }
-      // 按项目(记忆库)禁用:disabledBanks 数组 → banks.<id>.disabled
-      if (Array.isArray(body.disabledBanks)) {
+      // 按项目(记忆库)设置模式:bankModes = { bankId: "on"|"readonly"|"off" }
+      if (body.bankModes && typeof body.bankModes === "object") {
         next.banks = next.banks && typeof next.banks === "object" ? next.banks : {};
-        for (const name of ["disabledBanks", "disabledBanksCleared"]) delete next[name];
-        const disabledSet = new Set(body.disabledBanks.map((x) => String(x).trim()).filter(Boolean));
-        // 先清空已有的 disabled 标记,再按本次列表重建
-        for (const [id, section] of Object.entries(next.banks)) {
-          if (section && typeof section === "object") delete section.disabled;
-        }
-        for (const id of disabledSet) {
-          next.banks[id] = next.banks[id] && typeof next.banks[id] === "object" ? next.banks[id] : {};
-          next.banks[id].disabled = true;
+        const entries = Object.entries(body.bankModes).filter(([, m]) => m === "on" || m === "readonly" || m === "off");
+        for (const [id, mode] of entries) {
+          const section = next.banks[id] && typeof next.banks[id] === "object" ? { ...next.banks[id] } : {};
+          delete section.disabled;
+          delete section.retainSessions;
+          if (mode === "off") section.disabled = true;
+          else if (mode === "readonly") section.retainSessions = false;
+          if (Object.keys(section).length > 0) next.banks[id] = section;
+          else delete next.banks[id];
         }
         if (Object.keys(next.banks).length === 0) delete next.banks;
       }

@@ -228,8 +228,8 @@
     <span class="tgl-text"><span class="tgl-title">Read-only (use existing memory, stop producing new)</span><span class="tgl-desc">Keeps recall / search of existing memory; stops writing <b>new</b> memories from conversations (saves retain/extraction tokens).</span></span>
   </label>
 
-  <h2 style="margin-top:6px">Per-project (per-bank) switches</h2>
-  <div class="dim" style="margin-bottom:8px">Disable memory for specific projects/banks.</div>
+  <h2 style="margin-top:6px">Per-project (per-bank) memory mode</h2>
+  <div class="dim" style="margin-bottom:8px">On = full context. Read-only = use existing memory, no new tokens. Off = no memory for this project.</div>
   <div id="bank-toggles"></div>
 
   <div class="row" style="margin-top:10px">
@@ -645,17 +645,25 @@ async function loadToggles() {
   const box = $("#bank-toggles");
   box.innerHTML = "";
   for (const b of banks) {
-    const off = cfg.banks && cfg.banks[b] && cfg.banks[b].disabled === true;
+    const sec = cfg.banks && cfg.banks[b] && typeof cfg.banks[b] === "object" ? cfg.banks[b] : {};
+    const off = sec.disabled === true;
+    const readonly = !off && sec.retainSessions === false;
+    const mode = off ? "off" : readonly ? "readonly" : "on";
     const row = document.createElement("label");
     row.className = "tgl-row";
     row.innerHTML = `
-      <span class="dhh-switch"><input type="checkbox" class="bank-off" value="${esc(b)}" ${off ? "checked" : ""}><span class="track"></span><span class="knob"></span></span>
-      <span class="tgl-text"><span class="tgl-title">${esc(b)}</span><span class="tgl-desc">${off ? "This project's memory is off." : "Memory on for this project."}</span></span>`;
+      <span class="tgl-text"><span class="tgl-title">${esc(b)}</span></span>
+      <select class="bank-mode" data-bank="${esc(b)}" style="max-width:150px;">
+        <option value="on" ${mode === "on" ? "selected" : ""}>On (context)</option>
+        <option value="readonly" ${mode === "readonly" ? "selected" : ""}>Read-only (no new)</option>
+        <option value="off" ${mode === "off" ? "selected" : ""}>Off</option>
+      </select>`;
     box.appendChild(row);
   }
 }
 $("#btn-toggle-save").onclick = async () => {
-  const disabledBanks = [...document.querySelectorAll(".bank-off:checked")].map((c) => c.value);
+  const bankModes = {};
+  document.querySelectorAll(".bank-mode").forEach((sel) => { bankModes[sel.dataset.bank] = sel.value; });
   const btn = $("#btn-toggle-save");
   btn.disabled = true;
   try {
@@ -665,7 +673,7 @@ $("#btn-toggle-save").onclick = async () => {
         disabled: $("#toggle-master").checked,
         autoReflect: $("#toggle-reflect").checked,
         retainSessions: !$("#toggle-readonly").checked, // 只读=关闭 retain
-        disabledBanks,
+        bankModes,
       }),
     });
     if (!r.ok) throw new Error(r.error || "save failed");
