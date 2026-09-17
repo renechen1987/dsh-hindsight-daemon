@@ -486,8 +486,16 @@ async function managerHandler(req, res) {
     res.writeHead(200, { "content-type": "text/html; charset=utf-8", "cache-control": "no-store" });
     res.end(managerHtml);
   } else if (pathname === "/entry.js") {
+    // 每次从磁盘读:注入脚本是 2KB 的小文件,读盘代价可忽略,但改完只需重载渲染器
+    // 就能生效,不必为了换一个按钮重启整个 DSH(manager.html 仍按启动时缓存)。
+    let body = entryJs;
+    try {
+      body = readFileSync(join(pathDirname(fileURLToPath(import.meta.url)), "entry.js"), "utf8");
+    } catch {
+      // 读不到就退回启动时的缓存
+    }
     res.writeHead(200, { "content-type": "text/javascript; charset=utf-8", "cache-control": "no-store" });
-    res.end(entryJs);
+    res.end(body);
   } else if (pathname === "/api/plugin/key") {
     await handlePluginKey(req, res, pathname);
   } else if (pathname.startsWith("/api/plugin")) {

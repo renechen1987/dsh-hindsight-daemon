@@ -38,7 +38,7 @@ window.__ModuleLoader__.load({
 .dhh-settingsChevron{flex:none;color:var(--dsw-alias-label-tertiary);font-size:12px;transition:transform .16s}
 .dhh-settingsChevron_open{transform:rotate(180deg)}
 .dhh-settingsBody{margin:0 16px;padding:12px 0 14px;border-top:1px solid var(--dsw-alias-border-l2)}
-.dhh-settingsOpenButton{display:inline-flex;align-items:center;gap:6px;padding:6px 14px;border-radius:8px;border:1px solid var(--dsw-alias-border-l2);background:var(--dsw-alias-bg-layer-2);color:var(--dsw-alias-label-primary);font-size:13px;line-height:1.5;text-decoration:none;cursor:pointer}
+.dhh-settingsOpenButton{display:inline-flex;align-items:center;gap:6px;padding:6px 14px;border-radius:8px;border:1px solid var(--dsw-alias-border-l2);background:var(--dsw-alias-bg-layer-2);color:var(--dsw-alias-label-primary);font-family:inherit;font-size:13px;line-height:1.5;text-decoration:none;cursor:pointer}
 .dhh-settingsOpenButton:hover{background:var(--dsw-alias-interactive-bg-hover)}
 .dhh-settingsOpenButton:focus-visible{outline:2px solid var(--dsw-alias-brand-primary);outline-offset:2px}
 `;
@@ -77,12 +77,15 @@ window.__ModuleLoader__.load({
               "div",
               { className: "dhh-settingsBody" },
               react.createElement(
-                "a",
+                "button",
                 {
+                  type: "button",
                   className: "dhh-settingsOpenButton",
-                  href: "http://127.0.0.1:43121",
-                  target: "_blank",
-                  rel: "noopener",
+                  // 与 entry.js 同理:用 button + window.open 绕开第三方(document 级)
+                  // 链接拦截,交由 Electron 的 setWindowOpenHandler → shell.openExternal 打开
+                  onClick: function () {
+                    try { window.open("http://127.0.0.1:43121/", "_blank", "noopener"); } catch (e) { /* 忽略 */ }
+                  },
                 },
                 t("settings.open")
               )
