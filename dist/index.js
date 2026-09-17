@@ -724,6 +724,26 @@ function apply(ctx) {
   setupHostSettings(ctx);
   diag("loaded");
   const disposeManager = setupManager(ctx);
+  // 客户端半边自检:DSH 只会加载组装图(clientModules.graph())里的 dsh.client bundle。
+  // 组装失败时 DSH 不报错、控制台也没有任何输出 —— 表现就是「设置页卡片消失」,
+  // 所以这里主动记一条,便于后续从 /tmp/hindsight-plugin.log 判断。
+  const clientCheckTimer = setTimeout(() => {
+    try {
+      const cm = ctx.get("clientModules");
+      if (!cm || typeof cm.graph !== "function") {
+        diag("client_row_check", { service: false });
+        return;
+      }
+      const ids = cm.graph().entries.map((e) => e.id);
+      diag("client_row_check", {
+        service: true,
+        count: ids.length,
+        hasSelf: ids.includes(name),
+      });
+    } catch (err) {
+      diag("client_row_check", { error: String(err?.message ?? err) });
+    }
+  }, 5000);
   // host 就绪后 1s 开始后台拉起(不阻塞 DSH 启动)
   const timer = setTimeout(() => {
     ensureDaemon().catch((err) => {
@@ -734,6 +754,7 @@ function apply(ctx) {
   // DSH Desktop 退出 → 自动停止 daemon(分离进程,保证 stop 执行完)
   return () => {
     clearTimeout(timer);
+    clearTimeout(clientCheckTimer);
     disposeManager();
     if (stopped) return;
     stopped = true;
