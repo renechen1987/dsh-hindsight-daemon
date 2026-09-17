@@ -1,6 +1,6 @@
 {
   "name": "dsh-hindsight-daemon",
-  "version": "1.16.2",
+  "version": "1.16.3",
   "description": "DSH Desktop native plugin: auto-start the local Hindsight daemon on app launch, auto-stop on quit.",
   "type": "module",
   "main": "dist/index.js",

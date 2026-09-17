@@ -638,7 +638,10 @@ $("#btn-import").onclick = async () => {
 // ---- Memory toggles ----
 async function loadToggles() {
   const cfg = (await api("/plugin/config")).config || {};
-  $("#toggle-master").checked = cfg.disabled === true;
+  // 开关语义 = 「记忆是否启用」:勾上=启用(disabled:false)。
+  // 早先这里写反了(cfg.disabled === true),于是 UI 显示"开"时磁盘上其实是 disabled:true ——
+  // 看着是开的,实际完全没有记忆。不要改回去。
+  $("#toggle-master").checked = cfg.disabled !== true;
   $("#toggle-reflect").checked = cfg.autoReflect !== false; // 默认开
   $("#toggle-readonly").checked = cfg.retainSessions === false; // 只读=停止保留新会话
   const banks = await ensureBanks();
@@ -670,7 +673,7 @@ $("#btn-toggle-save").onclick = async () => {
     const r = await api("/plugin/config", {
       method: "PUT",
       body: JSON.stringify({
-        disabled: $("#toggle-master").checked,
+        disabled: $("#toggle-master").checked !== true,
         autoReflect: $("#toggle-reflect").checked,
         retainSessions: !$("#toggle-readonly").checked, // 只读=关闭 retain
         bankModes,

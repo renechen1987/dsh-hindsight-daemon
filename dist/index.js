@@ -483,11 +483,18 @@ async function managerHandler(req, res) {
   loadStatic();
   const pathname = new URL(req.url ?? "/", "http://x").pathname;
   if (pathname === "/" || pathname === "/index.html") {
+    // 同 /entry.js:按请求读盘,改完管理页只需刷新页面即可生效
+    let page = managerHtml;
+    try {
+      page = readFileSync(join(pathDirname(fileURLToPath(import.meta.url)), "manager.html"), "utf8");
+    } catch {
+      // 读不到就退回启动时的缓存
+    }
     res.writeHead(200, { "content-type": "text/html; charset=utf-8", "cache-control": "no-store" });
-    res.end(managerHtml);
+    res.end(page);
   } else if (pathname === "/entry.js") {
     // 每次从磁盘读:注入脚本是 2KB 的小文件,读盘代价可忽略,但改完只需重载渲染器
-    // 就能生效,不必为了换一个按钮重启整个 DSH(manager.html 仍按启动时缓存)。
+    // 就能生效,不必为了换一个按钮重启整个 DSH。
     let body = entryJs;
     try {
       body = readFileSync(join(pathDirname(fileURLToPath(import.meta.url)), "entry.js"), "utf8");
